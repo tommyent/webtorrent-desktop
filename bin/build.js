@@ -55,6 +55,7 @@ async function build () {
     entryPoints: [rendererEntry],
     packages: 'external',
     plugins: [externalConfigPlugin],
+    sourcemap: true,
     outfile: path.join(buildPath, 'renderer', 'main.js')
   })
 
