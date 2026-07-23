@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; script-src 'self'; style-src 'unsafe-inline'">
+    <title>About WebTorrent</title>
     <style>
       body {
         background-color: #ECECEC;
@@ -27,13 +29,14 @@
     </style>
   </head>
   <body>
-    <img src="../static/WebTorrent.png">
+    <img src="WebTorrent.png">
     <h1>WebTorrent</h1>
-    <p>
-      Version <script>document.write(require('../package.json').version)</script>
-      (<script>document.write(require('webtorrent/package.json').version)</script>)
-      (<script>document.write(process.arch)</script>)
+    <p id="version-info">
+      Version <span id="app-version"></span>
+      (<span id="webtorrent-version"></span>)
+      (<span id="architecture"></span>)
     </p>
-    <p><script>document.write(require('../build/config').APP_COPYRIGHT)</script></p>
+    <p id="copyright"></p>
+    <script src="about.js"></script>
   </body>
 </html>

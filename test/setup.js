@@ -118,6 +118,17 @@ function createApp () {
     }
   }
 
+  app.openAboutWindow = async function () {
+    const aboutPath = path.join(rootPath, 'build', 'main', 'windows', 'about.js')
+    await app.electronApp.evaluate((_, modulePath) => {
+      process.mainModule.require(modulePath).init()
+    }, aboutPath)
+    const page = await waitForPageTitle('About WebTorrent')
+    page.on('pageerror', reportRendererError)
+    await page.waitForLoadState('load')
+    return page
+  }
+
   return app
 }
 

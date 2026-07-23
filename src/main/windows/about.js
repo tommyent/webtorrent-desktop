@@ -6,6 +6,8 @@ const about = module.exports = {
 const config = require('../../config')
 const { BrowserWindow } = require('electron')
 
+const WEBTORRENT_VERSION = require('webtorrent/package.json').version
+
 function init () {
   if (about.win) {
     return about.win.show()
@@ -25,15 +27,22 @@ function init () {
     title: 'About ' + config.APP_WINDOW_TITLE,
     useContentSize: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      enableBlinkFeatures: 'AudioVideoTracks',
-      backgroundThrottling: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true
     },
     width: 300
   })
 
-  win.loadURL(config.WINDOW_ABOUT)
+  const query = new URLSearchParams({
+    appVersion: config.APP_VERSION,
+    webtorrentVersion: WEBTORRENT_VERSION,
+    architecture: process.arch,
+    copyright: config.APP_COPYRIGHT
+  })
+  win.loadURL(`${config.WINDOW_ABOUT}?${query}`)
+  win.webContents.on('will-navigate', e => e.preventDefault())
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   win.once('ready-to-show', () => {
     win.show()
