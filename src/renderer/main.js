@@ -12,6 +12,7 @@ const dragDrop = require('drag-drop')
 const electron = require('electron')
 const fs = require('fs')
 const React = require('react')
+const { flushSync } = require('react-dom')
 const { createRoot } = require('react-dom/client')
 
 const config = require('../config')
@@ -204,7 +205,10 @@ function update () {
   // createRoot renders asynchronously, so the App ref may not be set yet
   if (!app) return
   controllers.playback().showOrHidePlayerControls()
-  app.setState(state)
+  // The whole app is an imperative render pump: every caller assumes the DOM
+  // reflects state by the time update() returns, as it did on React <= 17.
+  // flushSync preserves that contract under React 18+ concurrent roots.
+  flushSync(() => app.setState(state))
   updateElectron()
 }
 
