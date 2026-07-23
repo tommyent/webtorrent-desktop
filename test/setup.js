@@ -58,6 +58,7 @@ function createApp () {
         path.join(__dirname, 'mocks.js'),
         rootPath,
         '--test',
+        '--force-device-scale-factor=1',
         // Must come after the app path: sliceArgv() in src/main/index.js drops the
         // first 4 args in test mode, and later '--' flags are ignored by processArgv().
         `--user-data-dir=${userDataDir}`
