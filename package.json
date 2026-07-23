@@ -7,16 +7,6 @@
     "email": "feross@webtorrent.io",
     "url": "https://webtorrent.io"
   },
-  "babel": {
-    "plugins": [
-      [
-        "@babel/plugin-transform-react-jsx",
-        {
-          "useBuiltIns": true
-        }
-      ]
-    ]
-  },
   "bugs": {
     "url": "https://github.com/webtorrent/webtorrent-desktop/issues"
   },
@@ -56,10 +46,6 @@
     "winreg": "^1.2.5"
   },
   "devDependencies": {
-    "@babel/cli": "7.29.7",
-    "@babel/core": "7.29.7",
-    "@babel/eslint-parser": "7.29.7",
-    "@babel/plugin-transform-react-jsx": "7.29.7",
     "@electron/notarize": "3.1.1",
     "@electron/osx-sign": "2.6.0",
     "@electron/packager": "20.0.4",
@@ -69,6 +55,7 @@
     "electron-installer-debian": "3.2.0",
     "electron-installer-redhat": "3.4.0",
     "electron-winstaller": "5.4.4",
+    "esbuild": "^0.28.1",
     "gh-release": "8.1.0",
     "minimist": "1.2.8",
     "nodemon": "3.1.14",
@@ -112,20 +99,17 @@
     "url": "git://github.com/webtorrent/webtorrent-desktop.git"
   },
   "scripts": {
-    "build": "babel src --out-dir build",
+    "build": "node ./bin/build.js",
     "clean": "node ./bin/clean.js",
     "gh-release": "gh-release",
     "install-system-deps": "brew install fakeroot dpkg rpm",
     "open-config": "node ./bin/open-config.js",
     "package": "node ./bin/package.js",
     "start": "npm run build && electron .",
-    "test": "standard && depcheck --ignores=standard,@babel/eslint-parser --ignore-dirs=build,dist",
+    "test": "standard && depcheck --ignores=standard --ignore-dirs=build,dist",
     "test-integration": "npm run build && node ./test",
     "update-authors": "./bin/update-authors.sh",
     "watch": "nodemon --exec \"npm run start\" --ext js,css --ignore build/ --ignore dist/"
-  },
-  "standard": {
-    "parser": "@babel/eslint-parser"
   },
   "renovate": {
     "extends": [
