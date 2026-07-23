@@ -9,7 +9,6 @@ const fs = require('fs')
 const minimist = require('minimist')
 const os = require('os')
 const path = require('path')
-const rimraf = require('rimraf')
 const series = require('run-series')
 const zip = require('cross-zip')
 
@@ -41,8 +40,8 @@ async function build () {
   validateOptions(platform)
 
   console.log('Nuking dist/ and build/...')
-  rimraf.sync(DIST_PATH)
-  rimraf.sync(BUILD_PATH)
+  fs.rmSync(DIST_PATH, { recursive: true, force: true })
+  fs.rmSync(BUILD_PATH, { recursive: true, force: true })
 
   console.log('Build: Transpiling to ES5...')
   cp.execSync('npm run build', {
@@ -382,7 +381,7 @@ function buildDarwin (cb) {
       const archSuffix = darwin.arch === 'universal' ? '' : `-${darwin.arch}`
       const targetPath = path.join(DIST_PATH, `${BUILD_NAME}${archSuffix}.dmg`)
       const stagingPath = fs.mkdtempSync(path.join(os.tmpdir(), 'webtorrent-dmg-'))
-      rimraf.sync(targetPath)
+      fs.rmSync(targetPath, { force: true })
 
       try {
         fs.cpSync(appPath, path.join(stagingPath, path.basename(appPath)), { recursive: true })
@@ -400,7 +399,7 @@ function buildDarwin (cb) {
       } catch (err) {
         cb(err)
       } finally {
-        rimraf.sync(stagingPath)
+        fs.rmSync(stagingPath, { recursive: true, force: true })
       }
     }
   }).catch(function (err) {

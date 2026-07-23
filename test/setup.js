@@ -4,7 +4,6 @@ const parseTorrent = require('parse-torrent')
 const path = require('path')
 const { _electron: electron } = require('playwright')
 const PNG = require('pngjs').PNG
-const rimraf = require('rimraf')
 
 const config = require('./config')
 
@@ -244,14 +243,14 @@ function compareIgnoringTransparency (bufActual, bufExpected) {
 
 // Resets the test directory, containing config.json, torrents, downloads, etc
 function resetTestDataDir () {
-  rimraf.sync(config.TEST_DIR)
+  fs.rmSync(config.TEST_DIR, { recursive: true, force: true })
   // Create TEST_DIR as well as /Downloads and /Desktop
   fs.mkdirSync(config.TEST_DIR_DOWNLOAD, { recursive: true })
   fs.mkdirSync(config.TEST_DIR_DESKTOP, { recursive: true })
 }
 
 function deleteTestDataDir () {
-  rimraf.sync(config.TEST_DIR)
+  fs.rmSync(config.TEST_DIR, { recursive: true, force: true })
 }
 
 // Checks a given folder under Downloads.

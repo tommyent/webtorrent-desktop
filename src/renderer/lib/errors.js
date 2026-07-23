@@ -1,11 +1,16 @@
-const ExtendableError = require('es6-error')
+class AppError extends Error {
+  constructor (message) {
+    super(message)
+    this.name = this.constructor.name
+  }
+}
 
 /* Generic errors */
 
-class CastingError extends ExtendableError {}
-class PlaybackError extends ExtendableError {}
-class SoundError extends ExtendableError {}
-class TorrentError extends ExtendableError {}
+class CastingError extends AppError {}
+class PlaybackError extends AppError {}
+class SoundError extends AppError {}
+class TorrentError extends AppError {}
 
 /* Playback */
 

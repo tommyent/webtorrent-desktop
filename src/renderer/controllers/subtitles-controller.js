@@ -1,6 +1,5 @@
 const { ipcRenderer } = require('electron')
 const path = require('path')
-const parallel = require('run-parallel')
 
 const { dispatch } = require('../lib/dispatcher')
 
@@ -36,33 +35,28 @@ module.exports = class SubtitlesController {
     const filePaths = files.map(file => file.path || file)
 
     ipcRenderer.invoke('readSubtitleFiles', filePaths)
-      .then(subtitleFiles => {
-        // Parse the files concurrently, then add all resulting subtitle tracks
-        const tasks = subtitleFiles.map(
-          ({ filePath, contents }) => cb => loadSubtitle(filePath, contents, cb)
-        )
-        parallel(tasks, (err, tracks) => {
-          if (err) return dispatch('error', err)
+      .then(subtitleFiles => Promise.all(subtitleFiles.map(
+        ({ filePath, contents }) => loadSubtitle(filePath, contents)
+      )))
+      .then(tracks => {
+        // No dupes allowed
+        tracks.forEach((track, i) => {
+          let trackIndex = subtitles.tracks.findIndex((t) =>
+            track.filePath === t.filePath)
 
-          // No dupes allowed
-          tracks.forEach((track, i) => {
-            let trackIndex = subtitles.tracks.findIndex((t) =>
-              track.filePath === t.filePath)
+          // Add the track
+          if (trackIndex === -1) {
+            trackIndex = subtitles.tracks.push(track) - 1
+          }
 
-            // Add the track
-            if (trackIndex === -1) {
-              trackIndex = subtitles.tracks.push(track) - 1
-            }
-
-            // If we're auto-selecting a track, try to find one in the user's language
-            if (autoSelect && (i === 0 || isSystemLanguage(track.language))) {
-              subtitles.selectedIndex = trackIndex
-            }
-          })
-
-          // Finally, make sure no two tracks have the same label
-          relabelSubtitles(subtitles)
+          // If we're auto-selecting a track, try to find one in the user's language
+          if (autoSelect && (i === 0 || isSystemLanguage(track.language))) {
+            subtitles.selectedIndex = trackIndex
+          }
         })
+
+        // Finally, make sure no two tracks have the same label
+        relabelSubtitles(subtitles)
       })
       .catch(() => dispatch('error', 'Can\'t parse subtitles file.'))
   }
@@ -88,7 +82,7 @@ module.exports = class SubtitlesController {
   }
 }
 
-function loadSubtitle (filePath, contents, cb) {
+function loadSubtitle (filePath, contents) {
   // Lazy load to keep startup fast
   const concat = require('simple-concat')
   const { Readable } = require('stream')
@@ -98,22 +92,23 @@ function loadSubtitle (filePath, contents, cb) {
   // Parse the .SRT or .VTT contents and add a subtitle track
   const vttStream = Readable.from(contents).pipe(srtToVtt())
 
-  concat(vttStream, (err, buf) => {
-    if (err) return cb(new Error('Can\'t parse subtitles file.'))
-    // Detect what language the subtitles are in
-    const vttContents = buf.toString().replace(/(.*-->.*)/g, '')
-    let langDetected = (new LanguageDetect()).detect(vttContents, 2)
-    langDetected = langDetected.length ? langDetected[0][0] : 'subtitle'
-    langDetected = langDetected.slice(0, 1).toUpperCase() + langDetected.slice(1)
+  return new Promise((resolve, reject) => {
+    concat(vttStream, (err, buf) => {
+      if (err) return reject(new Error('Can\'t parse subtitles file.'))
 
-    const track = {
-      buffer: 'data:text/vtt;base64,' + buf.toString('base64'),
-      language: langDetected,
-      label: langDetected,
-      filePath
-    }
+      // Detect what language the subtitles are in
+      const vttContents = buf.toString().replace(/(.*-->.*)/g, '')
+      let langDetected = (new LanguageDetect()).detect(vttContents, 2)
+      langDetected = langDetected.length ? langDetected[0][0] : 'subtitle'
+      langDetected = langDetected.slice(0, 1).toUpperCase() + langDetected.slice(1)
 
-    cb(null, track)
+      resolve({
+        buffer: 'data:text/vtt;base64,' + buf.toString('base64'),
+        language: langDetected,
+        label: langDetected,
+        filePath
+      })
+    })
   })
 }
 

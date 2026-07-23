@@ -6,8 +6,6 @@ const { app, ipcMain } = require('electron')
 const crashReporter = require('../crash-reporter')
 crashReporter.init()
 
-const parallel = require('run-parallel')
-
 const config = require('../config')
 const ipc = require('./ipc')
 const log = require('./log')
@@ -74,16 +72,17 @@ function init () {
   app.ipcReady = false // main window has finished loading and IPC is ready
   app.isQuitting = false
 
-  parallel({
-    appReady: (cb) => app.on('ready', () => cb(null)),
-    state: (cb) => State.load(cb)
-  }, onReady)
+  Promise.all([
+    app.whenReady(),
+    new Promise((resolve, reject) => {
+      State.load((err, state) => err ? reject(err) : resolve(state))
+    })
+  ])
+    .then(([, state]) => onReady(state))
+    .catch(err => process.nextTick(() => { throw err }))
 
-  function onReady (err, results) {
-    if (err) throw err
-
+  function onReady (state) {
     isReady = true
-    const state = results.state
 
     menu.init()
     windows.main.init(state, { hidden })

@@ -1,4 +1,4 @@
-const rimraf = require('rimraf')
+const fs = require('fs')
 const test = require('tape')
 
 const config = require('./config')
@@ -6,7 +6,7 @@ const setup = require('./setup')
 
 test('torrent-list: show download path missing', function (t) {
   setup.resetTestDataDir()
-  rimraf.sync(config.TEST_DIR_DOWNLOAD)
+  fs.rmSync(config.TEST_DIR_DOWNLOAD, { recursive: true, force: true })
 
   t.timeoutAfter(20e3)
   const app = setup.createApp()

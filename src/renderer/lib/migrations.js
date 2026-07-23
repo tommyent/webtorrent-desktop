@@ -171,7 +171,6 @@ function migrate_0_17_2 (saved) {
   // Windows Explorer. See: https://github.com/webtorrent/webtorrent-desktop/issues/905
 
   const { copyFileSync } = require('fs')
-  const rimraf = require('rimraf')
 
   const OLD_NAME = 'The WIRED CD - Rip. Sample. Mash. Share.'
   const NEW_NAME = 'The WIRED CD - Rip. Sample. Mash. Share'
@@ -202,7 +201,7 @@ function migrate_0_17_2 (saved) {
   } catch (err) {}
   ts.posterFileName = NEW_HASH + '.jpg'
 
-  rimraf.sync(path.join(config.TORRENT_PATH, ts.torrentFileName))
+  fs.rmSync(path.join(config.TORRENT_PATH, ts.torrentFileName), { force: true })
   copyFileSync(
     path.join(config.STATIC_PATH, 'wiredCd.torrent'),
     path.join(config.TORRENT_PATH, NEW_HASH + '.torrent')
