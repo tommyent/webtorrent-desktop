@@ -4,7 +4,7 @@ const setup = require('./setup')
 test('video-streaming', function (t) {
   setup.resetTestDataDir()
 
-  t.timeoutAfter(60e3)
+  t.timeoutAfter(90e3)
   const app = setup.createApp()
   setup.waitForLoad(app, t, { online: true })
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'Big Buck Bunny'))
@@ -12,11 +12,11 @@ test('video-streaming', function (t) {
     .then(() => app.client.moveToObject('.torrent'))
     .then(() => setup.wait())
     .then(() => app.client.click('.icon.play'))
-    .then(() => setup.wait(10e3))
-    // Pause. Skip to two seconds in. Wait another two seconds for it to load.
+    .then(() => waitForVideoReady(app))
+    // Pause, seek to two seconds, and wait for that frame to load.
     .then(() => pause(app))
     .then(() => app.webContents.executeJavaScript('dispatch("skipTo", 2)'))
-    .then(() => setup.wait(5e3))
+    .then(() => waitForVideoFrame(app, 2))
     // Take a screenshot to verify video playback
     .then(() => setup.screenshotCreateOrCompare(app, t, 'play-torrent-bbb'))
     // Hit escape
@@ -39,4 +39,19 @@ function pause (app) {
   // playPause only toggles, so force the source state before dispatching it.
   return app.webContents.executeJavaScript(
     'window.state.playing.isPaused = false; dispatch("playPause")')
+}
+
+function waitForVideoReady (app) {
+  return app.page.waitForFunction(() => {
+    const video = document.querySelector('video')
+    return window.state.playing.isReady && video && video.readyState >= 2
+  }, null, { timeout: 45e3 })
+}
+
+function waitForVideoFrame (app, time) {
+  return app.page.waitForFunction(expectedTime => {
+    const video = document.querySelector('video')
+    return video && video.readyState >= 2 &&
+      Math.abs(video.currentTime - expectedTime) < 0.25
+  }, time, { timeout: 30e3 })
 }

@@ -35,9 +35,15 @@ test('audio-streaming', function (t) {
     .then(() => pause(app))
     .then(() => app.webContents.executeJavaScript('dispatch("skipTo", 2)'))
     .then(() => setup.screenshotCreateOrCompare(app, t, 'play-torrent-wired-3'))
-    // Fullscreen
+    // Fullscreen dimensions depend on the CI host's display. Assert the
+    // transition everywhere and keep the local visual baseline.
     .then(() => app.client.click('.fullscreen'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'play-torrent-wired-fullscreen'))
+    .then(() => app.page.waitForFunction(
+      () => window.state.window.isFullScreen, null, { timeout: 10e3 }))
+    .then(() => t.pass('enters fullscreen'))
+    .then(() => process.env.CI
+      ? null
+      : setup.screenshotCreateOrCompare(app, t, 'play-torrent-wired-fullscreen'))
     // Back to normal audio view. Give the player controls have had time to disappear.
     .then(() => app.webContents.executeJavaScript('dispatch("escapeBack")'))
     .then(() => setup.screenshotCreateOrCompare(app, t, 'play-torrent-wired-4'))
