@@ -12,7 +12,7 @@ const dragDrop = require('drag-drop')
 const electron = require('electron')
 const fs = require('fs')
 const React = require('react')
-const ReactDOM = require('react-dom')
+const { createRoot } = require('react-dom/client')
 
 const config = require('../config')
 const telemetry = require('./lib/telemetry')
@@ -116,10 +116,9 @@ function onState (err, _state) {
   // Restart everything we were torrenting last time the app ran
   resumeTorrents()
 
-  // Initialize ReactDOM
-  ReactDOM.render(
-    <App state={state} ref={elem => { app = elem }} />,
-    document.querySelector('#body')
+  // Initialize the React root
+  createRoot(document.querySelector('#body')).render(
+    <App state={state} ref={elem => { app = elem }} />
   )
 
   // Calling update() updates the UI given the current state
@@ -202,6 +201,8 @@ function lazyLoadCast () {
 // 3. dispatch - the event handler calls dispatch(), main.js sends it to a controller
 // 4. controller - the controller handles the event, changing the state object
 function update () {
+  // createRoot renders asynchronously, so the App ref may not be set yet
+  if (!app) return
   controllers.playback().showOrHidePlayerControls()
   app.setState(state)
   updateElectron()
