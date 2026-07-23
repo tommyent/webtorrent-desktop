@@ -6,6 +6,8 @@ module.exports = {
 const electron = require('electron')
 const { app, ipcMain } = electron
 
+const config = require('../config')
+const REQUEST_TIMEOUT = 30e3
 const log = require('./log')
 const menu = require('./menu')
 const windows = require('./windows')
@@ -35,6 +37,26 @@ function init () {
       windows.webtorrent.send(message.name, ...message.args)
       log('webtorrent: sent queued %s', message.name)
     })
+  })
+
+  /**
+   * Telemetry transport
+   */
+
+  ipcMain.handle('sendTelemetry', async (e, data) => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new TypeError('Invalid telemetry payload')
+    }
+    const res = await electron.net.fetch(config.TELEMETRY_URL, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(data),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT)
+    })
+    return res.status
   })
 
   /**

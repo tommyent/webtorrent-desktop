@@ -42,22 +42,15 @@ function send (state) {
     return reset()
   }
 
-  const get = require('simple-get')
-
-  const opts = {
-    url: config.TELEMETRY_URL,
-    body: telemetry,
-    json: true
-  }
-
-  get.post(opts, (err, res) => {
-    if (err) return console.error('Error sending telemetry', err)
-    if (res.statusCode !== 200) {
-      return console.error(`Error sending telemetry, status code: ${res.statusCode}`)
-    }
-    console.log('Sent telemetry')
-    reset()
-  })
+  electron.ipcRenderer.invoke('sendTelemetry', telemetry)
+    .then(status => {
+      if (status !== 200) {
+        return console.error(`Error sending telemetry, status code: ${status}`)
+      }
+      console.log('Sent telemetry')
+      reset()
+    })
+    .catch(err => console.error('Error sending telemetry', err))
 }
 
 function reset () {
