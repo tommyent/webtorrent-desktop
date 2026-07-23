@@ -12,7 +12,6 @@ const AUTO_UPDATE_URL = config.AUTO_UPDATE_URL +
   '?version=' + config.APP_VERSION +
   '&platform=' + process.platform +
   '&sysarch=' + config.OS_SYSARCH
-const REQUEST_TIMEOUT = 30e3
 
 function init () {
   if (process.platform === 'linux') {
@@ -27,7 +26,7 @@ function init () {
 async function initLinux () {
   try {
     const res = await net.fetch(AUTO_UPDATE_URL, {
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT)
+      signal: AbortSignal.timeout(config.REQUEST_TIMEOUT)
     })
     await onResponse(res)
   } catch (err) {

@@ -9,7 +9,6 @@ const log = require('./log')
 
 const ANNOUNCEMENT_URL =
   `${config.ANNOUNCEMENT_URL}?version=${config.APP_VERSION}&platform=${process.platform}`
-const REQUEST_TIMEOUT = 30e3
 
 /**
  * In certain situations, the WebTorrent team may need to show an announcement to
@@ -28,7 +27,7 @@ const REQUEST_TIMEOUT = 30e3
 async function init () {
   try {
     const res = await net.fetch(ANNOUNCEMENT_URL, {
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT)
+      signal: AbortSignal.timeout(config.REQUEST_TIMEOUT)
     })
     if (res.status === 204) return log('No announcement available')
     if (res.status !== 200) {
