@@ -16,6 +16,7 @@ const main = module.exports = {
 
 const { app, BrowserWindow, screen } = require('electron')
 const debounce = require('debounce')
+const path = require('path')
 
 const config = require('../../config')
 const log = require('../log')
@@ -41,8 +42,10 @@ function init (state, options) {
     useContentSize: true, // Specify web page size without OS chrome
     width: initialBounds.width,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      preload: path.join(__dirname, '..', 'preload.js'),
       enableBlinkFeatures: 'AudioVideoTracks',
       backgroundThrottling: false
     },
@@ -69,6 +72,7 @@ function init (state, options) {
     // before our drag-and-drop handlers have been initialized.
     e.preventDefault()
   })
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   win.on('blur', onWindowBlur)
   win.on('focus', onWindowFocus)

@@ -7,7 +7,7 @@ const prettyBytes = require('prettier-bytes')
 const TorrentSummary = require('../lib/torrent-summary')
 const Playlist = require('../lib/playlist')
 const { dispatch, dispatcher } = require('../lib/dispatcher')
-const config = require('../../config')
+const config = require('../lib/config')
 const { calculateEta } = require('../lib/time')
 
 // Shows a streaming video player. Standard features + Chromecast + Airplay

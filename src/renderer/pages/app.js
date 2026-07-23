@@ -2,6 +2,7 @@ const createGetter = require('fn-getter')
 const React = require('react')
 
 const Header = require('../components/header')
+const config = require('../lib/config')
 
 // Perf optimization: Needed immediately, so do not lazy load it below
 const TorrentListPage = require('./torrent-list-page')
@@ -37,7 +38,7 @@ class App extends React.Component {
 
     const cls = [
       'view-' + state.location.url(), /* e.g. view-home, view-player */
-      'is-' + process.platform /* e.g. is-darwin, is-win32, is-linux */
+      'is-' + config.PLATFORM /* e.g. is-darwin, is-win32, is-linux */
     ]
     if (state.window.isFullScreen) cls.push('is-fullscreen')
     if (state.window.isFocused) cls.push('is-focused')

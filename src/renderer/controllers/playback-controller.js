@@ -1,5 +1,4 @@
-const { ipcRenderer } = require('electron')
-const path = require('path')
+const api = require('../lib/api')
 
 const { dispatch } = require('../lib/dispatcher')
 const telemetry = require('../lib/telemetry')
@@ -61,10 +60,10 @@ module.exports = class PlaybackController {
   // Open a file in OS default app.
   openPath (infoHash, index) {
     const torrentSummary = TorrentSummary.getByKey(this.state, infoHash)
-    const filePath = path.join(
+    const filePath = api.path.join(
       torrentSummary.path,
       torrentSummary.files[index].path)
-    ipcRenderer.send('openPath', filePath)
+    api.torrent.openPath(filePath)
   }
 
   // Toggle (play or pause) the currently playing media
@@ -127,7 +126,7 @@ module.exports = class PlaybackController {
     if (isCasting(state)) {
       this.cast.play()
     }
-    ipcRenderer.send('onPlayerPlay')
+    api.player.play()
   }
 
   // Pause the currently playing media
@@ -138,7 +137,7 @@ module.exports = class PlaybackController {
     if (isCasting(state)) {
       this.cast.pause()
     }
-    ipcRenderer.send('onPlayerPause')
+    api.player.pause()
   }
 
   // Skip specified number of seconds (backwards if negative)
@@ -242,7 +241,7 @@ module.exports = class PlaybackController {
     sound.play('PLAY')
 
     this.startServer(torrentSummary)
-    ipcRenderer.send('onPlayerOpen')
+    api.player.open()
     this.updatePlayer(infoHash, index, true, cb)
   }
 
@@ -252,15 +251,14 @@ module.exports = class PlaybackController {
 
     if (torrentSummary.status === 'paused') {
       dispatch('startTorrentingSummary', torrentSummary.torrentKey)
-      ipcRenderer.once('wt-ready-' + torrentSummary.infoHash,
-        () => onTorrentReady())
+      api.torrent.onceReady(torrentSummary.infoHash, onTorrentReady)
     } else {
       onTorrentReady()
     }
 
     function onTorrentReady () {
-      ipcRenderer.send('wt-start-server', torrentSummary.infoHash)
-      ipcRenderer.once('wt-server-running', () => { state.playing.isReady = true })
+      api.torrent.startServer(torrentSummary.infoHash)
+      api.torrent.onceServerRunning(() => { state.playing.isReady = true })
     }
   }
 
@@ -301,14 +299,14 @@ module.exports = class PlaybackController {
 
     // if it's audio, parse out the metadata (artist, title, etc)
     if (torrentSummary.status === 'paused') {
-      ipcRenderer.once('wt-ready-' + torrentSummary.infoHash, getAudioMetadata)
+      api.torrent.onceReady(torrentSummary.infoHash, getAudioMetadata)
     } else {
       getAudioMetadata()
     }
 
     function getAudioMetadata () {
       if (state.playing.type === 'audio') {
-        ipcRenderer.send('wt-get-audio-metadata', torrentSummary.infoHash, index)
+        api.torrent.getAudioMetadata(torrentSummary.infoHash, index)
       }
     }
 
@@ -333,7 +331,7 @@ module.exports = class PlaybackController {
     // otherwise, play the video
     this.update()
 
-    ipcRenderer.send('onPlayerUpdate', Playlist.hasNext(state), Playlist.hasPrevious(state))
+    api.player.update(Playlist.hasNext(state), Playlist.hasPrevious(state))
     cb()
   }
 
@@ -346,7 +344,7 @@ module.exports = class PlaybackController {
       this.cast.stop()
     }
     if (state.playing.location === 'external') {
-      ipcRenderer.send('quitExternalPlayer')
+      api.externalPlayer.quit()
     }
 
     // Save volume (this session only, not in state.saved)
@@ -365,9 +363,9 @@ module.exports = class PlaybackController {
     restoreBounds(state)
 
     // Tell the WebTorrent process to kill the torrent-to-HTTP server
-    ipcRenderer.send('wt-stop-server')
+    api.torrent.stopServer()
 
-    ipcRenderer.send('onPlayerClose')
+    api.player.close()
 
     // Playback Priority: resume previously paused downloads.
     if (this.state.saved.prefs.highestPlaybackPriority) {
@@ -388,8 +386,8 @@ function isCasting (state) {
 }
 
 function restoreBounds (state) {
-  ipcRenderer.send('setAspectRatio', 0)
+  api.window.setAspectRatio(0)
   if (state.window.bounds) {
-    ipcRenderer.send('setBounds', state.window.bounds, false)
+    api.window.setBounds(state.window.bounds, false)
   }
 }

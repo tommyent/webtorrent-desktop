@@ -1,4 +1,4 @@
-const { ipcRenderer } = require('electron')
+const api = require('../lib/api')
 
 const { CastingError } = require('../lib/errors')
 
@@ -163,7 +163,7 @@ module.exports = class CastController {
   }
 
   send (action, payload) {
-    ipcRenderer.send('wt-cast-command', {
+    api.cast.command({
       requestId: `cast-${Date.now()}-${++this.requestCounter}`,
       action,
       payload

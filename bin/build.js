@@ -9,17 +9,6 @@ const srcPath = path.join(rootPath, 'src')
 const buildPath = path.join(rootPath, 'build')
 const rendererEntry = path.join(srcPath, 'renderer', 'main.js')
 const engineEntry = path.join(srcPath, 'renderer', 'webtorrent.js')
-const configPath = path.join(srcPath, 'config.js')
-
-const externalConfigPlugin = {
-  name: 'external-config',
-  setup (build) {
-    build.onResolve({ filter: /config$/ }, args => {
-      if (`${path.resolve(args.resolveDir, args.path)}.js` !== configPath) return
-      return { path: '../config', external: true }
-    })
-  }
-}
 
 async function getJavaScriptFiles (directory) {
   const entries = await fs.readdir(directory, { withFileTypes: true })
@@ -50,11 +39,16 @@ async function build () {
   })
 
   await esbuild.build({
-    ...sharedOptions,
+    loader: { '.js': 'jsx' },
+    platform: 'browser',
+    target: 'chrome142',
     bundle: true,
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(
+        process.env.NODE_ENV === 'production' ? 'production' : 'development'
+      )
+    },
     entryPoints: [rendererEntry],
-    packages: 'external',
-    plugins: [externalConfigPlugin],
     sourcemap: true,
     outfile: path.join(buildPath, 'renderer', 'main.js')
   })

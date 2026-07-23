@@ -1,6 +1,7 @@
 const React = require('react')
 
 const { dispatcher } = require('../lib/dispatcher')
+const config = require('../lib/config')
 
 class Header extends React.Component {
   render () {
@@ -44,7 +45,7 @@ class Header extends React.Component {
   }
 
   getTitle () {
-    if (process.platform !== 'darwin') return null
+    if (config.PLATFORM !== 'darwin') return null
     const state = this.props.state
     return (<div className='title ellipsis'>{state.window.title}</div>)
   }

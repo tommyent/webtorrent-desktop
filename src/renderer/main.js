@@ -9,13 +9,12 @@ State.load(onState)
 const createGetter = require('fn-getter')
 const debounce = require('debounce')
 const dragDrop = require('drag-drop')
-const electron = require('electron')
-const fs = require('fs')
+const api = require('./lib/api')
 const React = require('react')
 const { flushSync } = require('react-dom')
 const { createRoot } = require('react-dom/client')
 
-const config = require('../config')
+const config = require('./lib/config')
 const telemetry = require('./lib/telemetry')
 const sound = require('./lib/sound')
 const TorrentPlayer = require('./lib/torrent-player')
@@ -24,11 +23,6 @@ const TorrentPlayer = require('./lib/torrent-player')
 const TorrentListController = require('./controllers/torrent-list-controller')
 
 const App = require('./pages/app')
-
-// Electron apps have two processes: a main process (node) runs first and starts
-// a renderer process (essentially a Chrome window). We're in the renderer process,
-// and this IPC channel receives from and sends messages to the main process
-const ipcRenderer = electron.ipcRenderer
 
 // Yo-yo pattern: state object lives here and percolates down thru all the views.
 // Events come back up from the views via dispatch(...)
@@ -159,7 +153,7 @@ function onState (err, _state) {
   window.addEventListener('focus', onFocus)
   window.addEventListener('blur', onBlur)
 
-  if (electron.ipcRenderer.sendSync('getWindowInfo').isVisible) {
+  if (api.app.getWindowInfo().isVisible) {
     sound.play('STARTUP')
   }
 
@@ -209,22 +203,22 @@ function update () {
 function updateElectron () {
   if (state.window.title !== state.prev.title) {
     state.prev.title = state.window.title
-    ipcRenderer.send('setTitle', state.window.title)
+    api.window.setTitle(state.window.title)
   }
   if (state.dock.progress.toFixed(2) !== state.prev.progress.toFixed(2)) {
     state.prev.progress = state.dock.progress
-    ipcRenderer.send('setProgress', state.dock.progress)
+    api.window.setProgress(state.dock.progress)
   }
   if (state.dock.badge !== state.prev.badge) {
     state.prev.badge = state.dock.badge
-    ipcRenderer.send('setBadge', state.dock.badge || 0)
+    api.dock.setBadge(state.dock.badge || 0)
   }
 }
 
 const dispatchHandlers = {
   // Torrent list: creating, deleting, selecting torrents
-  openTorrentFile: () => ipcRenderer.send('openTorrentFile'),
-  openFiles: () => ipcRenderer.send('openFiles'), /* shows the open file dialog */
+  openTorrentFile: () => api.dialogs.openTorrentFile(),
+  openFiles: () => api.dialogs.openFiles(), /* shows the open file dialog */
   openTorrentAddress: () => { state.modal = { id: 'open-torrent-address-modal' } },
 
   addTorrent: (torrentId) => controllers.torrentList().addTorrent(torrentId),
@@ -318,7 +312,7 @@ const dispatchHandlers = {
 
   // Controlling the window
   setDimensions,
-  toggleFullScreen: (setTo) => ipcRenderer.send('toggleFullScreen', setTo),
+  toggleFullScreen: (setTo) => api.window.toggleFullScreen(setTo),
   setTitle: (title) => { state.window.title = title },
   resetTitle: () => { state.window.title = config.APP_WINDOW_TITLE },
 
@@ -351,35 +345,29 @@ function dispatch (action, ...args) {
 
 // Listen to events from the main and webtorrent processes
 function setupIpc () {
-  ipcRenderer.on('log', (e, ...args) => console.log(...args))
-  ipcRenderer.on('error', (e, ...args) => console.error(...args))
-
-  ipcRenderer.on('dispatch', (e, ...args) => dispatch(...args))
-
-  ipcRenderer.on('fullscreenChanged', onFullscreenChanged)
-  ipcRenderer.on('windowBoundsChanged', onWindowBoundsChanged)
+  api.app.onLog((...args) => console.log(...args))
+  api.app.onError((...args) => console.error(...args))
+  api.app.onDispatch((...args) => dispatch(...args))
+  api.app.onFullscreenChanged(onFullscreenChanged)
+  api.app.onWindowBoundsChanged(onWindowBoundsChanged)
 
   const tc = controllers.torrent()
-  ipcRenderer.on('wt-parsed', (e, ...args) => tc.torrentParsed(...args))
-  ipcRenderer.on('wt-metadata', (e, ...args) => tc.torrentMetadata(...args))
-  ipcRenderer.on('wt-done', (e, ...args) => tc.torrentDone(...args))
-  ipcRenderer.on('wt-done', () => controllers.torrentList().resumePausedTorrents())
-  ipcRenderer.on('wt-warning', (e, ...args) => tc.torrentWarning(...args))
-  ipcRenderer.on('wt-error', (e, ...args) => tc.torrentError(...args))
+  api.torrent.onParsed((...args) => tc.torrentParsed(...args))
+  api.torrent.onMetadata((...args) => tc.torrentMetadata(...args))
+  api.torrent.onDone((...args) => tc.torrentDone(...args))
+  api.torrent.onDone(() => controllers.torrentList().resumePausedTorrents())
+  api.torrent.onWarning((...args) => tc.torrentWarning(...args))
+  api.torrent.onError((...args) => tc.torrentError(...args))
+  api.torrent.onProgress((...args) => tc.torrentProgress(...args))
+  api.torrent.onFileModtimes((...args) => tc.torrentFileModtimes(...args))
+  api.torrent.onFileSaved((...args) => tc.torrentFileSaved(...args))
+  api.torrent.onPoster((...args) => tc.torrentPosterSaved(...args))
+  api.torrent.onAudioMetadata((...args) => tc.torrentAudioMetadata(...args))
+  api.torrent.onServerRunning((...args) => tc.torrentServerRunning(...args))
+  api.cast.onEvent(envelope => controllers.cast().onEvent(envelope))
+  api.torrent.onUncaughtError(err => telemetry.logUncaughtError('webtorrent', err))
 
-  ipcRenderer.on('wt-progress', (e, ...args) => tc.torrentProgress(...args))
-  ipcRenderer.on('wt-file-modtimes', (e, ...args) => tc.torrentFileModtimes(...args))
-  ipcRenderer.on('wt-file-saved', (e, ...args) => tc.torrentFileSaved(...args))
-  ipcRenderer.on('wt-poster', (e, ...args) => tc.torrentPosterSaved(...args))
-  ipcRenderer.on('wt-audio-metadata', (e, ...args) => tc.torrentAudioMetadata(...args))
-  ipcRenderer.on('wt-server-running', (e, ...args) => tc.torrentServerRunning(...args))
-  ipcRenderer.on('wt-cast-event', (e, envelope) => controllers.cast().onEvent(envelope))
-
-  ipcRenderer.on('wt-uncaught-error', (e, err) => telemetry.logUncaughtError('webtorrent', err))
-
-  ipcRenderer.send('ipcReady')
-
-  State.on('stateSaved', () => ipcRenderer.send('stateSaved'))
+  api.app.ready()
 }
 
 // Quits any modal popovers and returns to the torrent list screen
@@ -424,7 +412,7 @@ function resumeTorrents () {
 // Set window dimensions to match video dimensions or fill the screen
 function setDimensions (dimensions) {
   // Don't modify the window size if it's already maximized
-  if (electron.ipcRenderer.sendSync('getWindowInfo').isMaximized) {
+  if (api.app.getWindowInfo().isMaximized) {
     state.window.bounds = null
     return
   }
@@ -454,8 +442,8 @@ function setDimensions (dimensions) {
     config.WINDOW_MIN_HEIGHT
   )
 
-  ipcRenderer.send('setAspectRatio', aspectRatio)
-  ipcRenderer.send('setBounds', { contentBounds: true, x: null, y: null, width, height })
+  api.window.setAspectRatio(aspectRatio)
+  api.window.setBounds({ contentBounds: true, x: null, y: null, width, height })
   state.playing.aspectRatio = aspectRatio
 }
 
@@ -466,10 +454,9 @@ function onOpen (files) {
 
   // File API seems to transform "magnet:?foo" in "magnet:///?foo"
   // this is a sanitization
-  files = files.map(file => {
-    if (typeof file !== 'string') return file
-    return file.replace(/^magnet:\/+\?/i, 'magnet:?')
-  })
+  files = files.map(file => typeof file === 'string'
+    ? file.replace(/^magnet:\/+\?/i, 'magnet:?')
+    : api.droppedFiles.getPath(file))
 
   const url = state.location.url()
   const allTorrents = files.every(TorrentPlayer.isTorrent)
@@ -510,7 +497,7 @@ const editableHtmlTags = new Set(['input', 'textarea'])
 
 function onPaste (e) {
   if (e && editableHtmlTags.has(e.target.tagName.toLowerCase())) return
-  controllers.torrentList().addTorrent(electron.clipboard.readText())
+  controllers.torrentList().addTorrent(api.clipboard.readText())
 
   update()
 }
@@ -561,17 +548,17 @@ function onVisibilityChange () {
   state.window.isVisible = !document.hidden
 }
 
-function onFullscreenChanged (e, isFullScreen) {
+function onFullscreenChanged (isFullScreen) {
   state.window.isFullScreen = isFullScreen
   if (!isFullScreen) {
     // Aspect ratio gets reset in fullscreen mode, so restore it (Mac)
-    ipcRenderer.send('setAspectRatio', state.playing.aspectRatio)
+    api.window.setAspectRatio(state.playing.aspectRatio)
   }
 
   update()
 }
 
-function onWindowBoundsChanged (e, newBounds) {
+function onWindowBoundsChanged (newBounds) {
   if (state.location.url() !== 'player') {
     state.saved.bounds = newBounds
     dispatch('stateSave')
@@ -579,12 +566,12 @@ function onWindowBoundsChanged (e, newBounds) {
 }
 
 function checkDownloadPath () {
-  fs.stat(state.saved.prefs.downloadPath, (err, stat) => {
-    if (err) {
+  api.downloads.checkPath(state.saved.prefs.downloadPath)
+    .then(exists => {
+      state.downloadPathStatus = exists ? 'ok' : 'missing'
+    })
+    .catch(err => {
       state.downloadPathStatus = 'missing'
-      return console.error(err)
-    }
-    if (stat.isDirectory()) state.downloadPathStatus = 'ok'
-    else state.downloadPathStatus = 'missing'
-  })
+      console.error(err)
+    })
 }

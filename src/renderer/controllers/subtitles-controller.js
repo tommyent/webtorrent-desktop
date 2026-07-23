@@ -1,5 +1,4 @@
-const { ipcRenderer } = require('electron')
-const path = require('path')
+const api = require('../lib/api')
 
 const { dispatch } = require('../lib/dispatcher')
 
@@ -9,7 +8,7 @@ module.exports = class SubtitlesController {
   }
 
   openSubtitles () {
-    const filenames = ipcRenderer.sendSync('showOpenDialogSync', {
+    const filenames = api.dialogs.showOpen({
       title: 'Select a subtitles file.',
       filters: [{ name: 'Subtitles', extensions: ['vtt', 'srt'] }],
       properties: ['openFile']
@@ -32,9 +31,10 @@ module.exports = class SubtitlesController {
     if (this.state.playing.type !== 'video') return
     if (files.length === 0) return
     const subtitles = this.state.playing.subtitles
-    const filePaths = files.map(file => file.path || file)
+    const filePaths = files.map(file =>
+      typeof file === 'string' ? file : api.droppedFiles.getPath(file))
 
-    ipcRenderer.invoke('loadSubtitles', filePaths)
+    api.subtitles.load(filePaths)
       .then(tracks => {
         tracks.forEach(track => { track.label = track.language })
         return tracks
@@ -71,14 +71,14 @@ module.exports = class SubtitlesController {
       if (fp.numPieces !== fp.numPiecesPresent) return // ignore incomplete files
       const file = torrentSummary.files[ix]
       if (!this.isSubtitle(file.name)) return
-      const filePath = path.join(torrentSummary.path, file.path)
+      const filePath = api.path.join(torrentSummary.path, file.path)
       this.addSubtitles([filePath], false)
     })
   }
 
   isSubtitle (file) {
     const name = typeof file === 'string' ? file : file.name
-    const ext = path.extname(name).toLowerCase()
+    const ext = api.path.extname(name).toLowerCase()
     return ext === '.srt' || ext === '.vtt'
   }
 }

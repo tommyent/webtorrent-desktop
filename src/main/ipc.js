@@ -7,6 +7,7 @@ const electron = require('electron')
 const { app, ipcMain } = electron
 const log = require('./log')
 const menu = require('./menu')
+const rendererFiles = require('./renderer-files')
 const windows = require('./windows')
 
 // Messages from the main process, to be sent once the WebTorrent process starts
@@ -18,6 +19,12 @@ const modules = {}
 
 function setModule (name, module) {
   modules[name] = module
+}
+
+function assertMainSender (event) {
+  if (!windows.main.win || event.sender !== windows.main.win.webContents) {
+    throw new Error('Rejected IPC from unknown renderer')
+  }
 }
 
 function init () {
@@ -36,8 +43,91 @@ function init () {
     })
   })
 
-  ipcMain.handle('sendTelemetry', (e, data) =>
-    require('./telemetry').send(data))
+  ipcMain.on('rendererConfig', e => {
+    assertMainSender(e)
+    const config = require('../config')
+    e.returnValue = {
+      APP_NAME: config.APP_NAME,
+      APP_VERSION: config.APP_VERSION,
+      APP_WINDOW_TITLE: config.APP_WINDOW_TITLE,
+      DEFAULT_DOWNLOAD_PATH: config.DEFAULT_DOWNLOAD_PATH,
+      DEFAULT_ANNOUNCE_LIST: require('create-torrent').announceList,
+      DELAYED_INIT: config.DELAYED_INIT,
+      IS_PORTABLE: config.IS_PORTABLE,
+      IS_PRODUCTION: config.IS_PRODUCTION,
+      IS_TEST: config.IS_TEST,
+      PLATFORM: process.platform,
+      POSTER_PATH: config.POSTER_PATH,
+      STATIC_PATH: config.STATIC_PATH,
+      TORRENT_PATH: config.TORRENT_PATH,
+      WINDOW_MIN_HEIGHT: config.WINDOW_MIN_HEIGHT,
+      WINDOW_MIN_WIDTH: config.WINDOW_MIN_WIDTH
+    }
+  })
+  ipcMain.on('rendererPath', (e, operation, args) => {
+    assertMainSender(e)
+    const path = require('path')
+    if (operation === 'sep') {
+      e.returnValue = path.sep
+    } else if (['basename', 'dirname', 'extname', 'join', 'parse', 'relative'].includes(operation) &&
+               Array.isArray(args) && args.every(arg => typeof arg === 'string')) {
+      e.returnValue = path[operation](...args)
+    } else {
+      e.returnValue = null
+    }
+  })
+
+  ipcMain.handle('stateLoad', e => {
+    assertMainSender(e)
+    if (!modules.stateStore) throw new Error('State store is not ready')
+    return modules.stateStore.getSaved()
+  })
+  ipcMain.handle('stateSave', async (e, saved) => {
+    assertMainSender(e)
+    if (!modules.stateStore) throw new Error('State store is not ready')
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) {
+      throw new TypeError('Invalid saved state')
+    }
+    await modules.stateStore.save(saved)
+  })
+  ipcMain.handle('stateSaveImmediate', async (e, saved) => {
+    assertMainSender(e)
+    if (!modules.stateStore) throw new Error('State store is not ready')
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) {
+      throw new TypeError('Invalid saved state')
+    }
+    await modules.stateStore.save(saved)
+    if (app.isQuitting) app.emit('stateSaved')
+  })
+  ipcMain.handle('checkDownloadPath', (e, filePath) => {
+    assertMainSender(e)
+    return rendererFiles.checkDownloadPath(filePath)
+  })
+  ipcMain.handle('torrentPathExists', (e, filePath) => {
+    assertMainSender(e)
+    return rendererFiles.pathExists(filePath)
+  })
+  ipcMain.handle('inspectCreateInput', (e, inputPaths) => {
+    assertMainSender(e)
+    return rendererFiles.inspectCreateInput(inputPaths)
+  })
+  ipcMain.handle('copyTorrentFile', (e, source, destination) => {
+    assertMainSender(e)
+    return rendererFiles.copyTorrentFile(source, destination)
+  })
+  ipcMain.handle('deleteTorrentMetadata', (e, torrentFileName, posterFileName) => {
+    assertMainSender(e)
+    return rendererFiles.deleteTorrentMetadata(torrentFileName, posterFileName)
+  })
+
+  ipcMain.handle('sendTelemetry', (e, data) => {
+    assertMainSender(e)
+    return require('./telemetry').send(data)
+  })
+  ipcMain.handle('loadSubtitles', (e, filePaths) => {
+    assertMainSender(e)
+    return require('./subtitles').load(filePaths)
+  })
 
   /**
    * Dialog
@@ -51,8 +141,6 @@ function init () {
     const dialog = require('./dialog')
     dialog.openFiles()
   })
-  ipcMain.handle('loadSubtitles', (e, filePaths) =>
-    require('./subtitles').load(filePaths))
 
   /**
    * Dock
@@ -273,6 +361,19 @@ function init () {
         })
         log('webtorrent: queueing %s', name)
       }
+      return
+    }
+
+    if (name === 'ipcReadyWebTorrent') {
+      if (windows.webtorrent.win && e.sender === windows.webtorrent.win.webContents) {
+        return oldEmit.call(ipcMain, name, e, ...args)
+      }
+      log('ignored %s from unknown renderer', name)
+      return
+    }
+
+    if (!windows.main.win || e.sender !== windows.main.win.webContents) {
+      log('ignored %s from unknown renderer', name)
       return
     }
 

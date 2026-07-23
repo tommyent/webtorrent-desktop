@@ -1,5 +1,5 @@
 const { dispatch } = require('../lib/dispatcher')
-const { ipcRenderer } = require('electron')
+const api = require('../lib/api')
 
 // Controls the Preferences screen
 module.exports = class PrefsController {
@@ -16,11 +16,11 @@ module.exports = class PrefsController {
       setup (cb) {
         // initialize preferences
         state.window.title = 'Preferences'
-        ipcRenderer.send('setAllowNav', false)
+        api.menu.setAllowNavigation(false)
         cb()
       },
       destroy: () => {
-        ipcRenderer.send('setAllowNav', true)
+        api.menu.setAllowNavigation(true)
       }
     })
   }
@@ -28,8 +28,8 @@ module.exports = class PrefsController {
   // Updates a single property in the saved prefs
   // For example: updatePreferences('isFileHandler', true)
   update (property, value) {
-    if (property === 'isFileHandler') ipcRenderer.send('setDefaultFileHandler', value)
-    else if (property === 'startup') ipcRenderer.send('setStartup', value)
+    if (property === 'isFileHandler') api.handlers.setDefault(value)
+    else if (property === 'startup') api.handlers.setStartup(value)
 
     this.state.saved.prefs[property] = value
     dispatch('stateSaveImmediate')

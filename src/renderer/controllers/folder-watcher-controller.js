@@ -1,13 +1,13 @@
-const { ipcRenderer } = require('electron')
+const api = require('../lib/api')
 
 module.exports = class FolderWatcherController {
   start () {
     console.log('-- IPC: start folder watcher')
-    ipcRenderer.send('startFolderWatcher')
+    api.folderWatcher.start()
   }
 
   stop () {
     console.log('-- IPC: stop folder watcher')
-    ipcRenderer.send('stopFolderWatcher')
+    api.folderWatcher.stop()
   }
 }

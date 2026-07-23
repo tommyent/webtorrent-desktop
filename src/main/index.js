@@ -1,6 +1,6 @@
 console.time('init')
 
-const { app, ipcMain } = require('electron')
+const { app } = require('electron')
 
 // Start crash reporter early, so it takes effect for child processes
 const crashReporter = require('../crash-reporter')
@@ -10,7 +10,7 @@ const config = require('../config')
 const ipc = require('./ipc')
 const log = require('./log')
 const menu = require('./menu')
-const State = require('../renderer/lib/state')
+const State = require('./state')
 const windows = require('./windows')
 
 const WEBTORRENT_VERSION = require('webtorrent/package.json').version
@@ -74,15 +74,24 @@ function init () {
 
   Promise.all([
     app.whenReady(),
-    new Promise((resolve, reject) => {
-      State.load((err, state) => err ? reject(err) : resolve(state))
-    })
+    State.load()
   ])
-    .then(([, state]) => onReady(state))
+    .then(([, saved]) => onReady(saved))
     .catch(err => process.nextTick(() => { throw err }))
 
-  function onReady (state) {
+  function onReady (saved) {
+    const state = { saved }
     isReady = true
+    let savePromise = Promise.resolve()
+    ipc.setModule('stateStore', {
+      getSaved: () => state.saved,
+      save: saved => {
+        state.saved = saved
+        const nextSave = savePromise.then(() => State.save(saved))
+        savePromise = nextSave.catch(() => {})
+        return nextSave
+      }
+    })
 
     menu.init()
     windows.main.init(state, { hidden })
@@ -123,8 +132,8 @@ function init () {
 
     app.isQuitting = true
     e.preventDefault()
+    app.once('stateSaved', () => app.quit())
     windows.main.dispatch('stateSaveImmediate') // try to save state on exit
-    ipcMain.once('stateSaved', () => app.quit())
     setTimeout(() => {
       console.error('Saving state took too long. Quitting.')
       app.quit()

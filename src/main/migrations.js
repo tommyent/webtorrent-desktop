@@ -8,7 +8,7 @@ const fs = require('fs')
 const path = require('path')
 const semver = require('semver')
 
-const config = require('../../config')
+const config = require('../config')
 
 // Change `state.saved` (which will be saved back to config.json on exit) as
 // needed, for example to deal with config.json format changes across versions
@@ -43,8 +43,7 @@ function run (state) {
 // enabled them.
 function installHandlers (saved) {
   if (saved.prefs.isFileHandler) {
-    const ipcRenderer = require('electron').ipcRenderer
-    ipcRenderer.send('setDefaultFileHandler', true)
+    require('./handlers').install()
   }
 }
 
@@ -117,7 +116,11 @@ function migrate_0_11_0 (saved) {
 }
 
 function migrate_0_12_0 (saved) {
-  const TorrentSummary = require('./torrent-summary')
+  const getFileOrFolder = torrentSummary => {
+    if (!torrentSummary.path || !torrentSummary.files ||
+        torrentSummary.files.length === 0) return null
+    return path.join(torrentSummary.path, torrentSummary.files[0].path.split(path.sep)[0])
+  }
 
   if (saved.prefs.openExternalPlayer == null && saved.prefs.playInVlc != null) {
     saved.prefs.openExternalPlayer = saved.prefs.playInVlc
@@ -136,7 +139,7 @@ function migrate_0_12_0 (saved) {
   ]
   saved.torrents.forEach(torrentSummary => {
     if (!defaultTorrentFiles.includes(torrentSummary.torrentFileName)) return
-    const fileOrFolder = TorrentSummary.getFileOrFolder(torrentSummary)
+    const fileOrFolder = getFileOrFolder(torrentSummary)
     if (!fileOrFolder) return
     try {
       fs.statSync(fileOrFolder)

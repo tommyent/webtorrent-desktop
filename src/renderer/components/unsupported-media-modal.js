@@ -1,5 +1,5 @@
 const React = require('react')
-const { shell } = require('electron')
+const api = require('../lib/api')
 
 const ModalOKCancel = require('./modal-ok-cancel')
 const { dispatcher } = require('../lib/dispatcher')
@@ -36,7 +36,7 @@ module.exports = class UnsupportedMediaModal extends React.Component {
   }
 
   onInstall () {
-    shell.openExternal('https://www.videolan.org/vlc/')
+    api.externalPlayer.openInstallPage()
 
     // TODO: dcposch send a dispatch rather than modifying state directly
     const state = this.props.state

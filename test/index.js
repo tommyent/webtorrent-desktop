@@ -12,6 +12,47 @@ test('app runs', function (t) {
   setup.waitForLoad(app, t)
     .then(() => setup.screenshotCreateOrCompare(app, t, 'app-basic', '.header'))
     .then(async () => {
+      const globals = await app.page.evaluate(() => {
+        const unsubscribe = window.webtorrent.app.onLog(() => {})
+        const result = {
+          require: typeof require,
+          process: typeof process,
+          Buffer: typeof Buffer,
+          module: typeof module,
+          bridge: typeof window.webtorrent,
+          unsubscribe: typeof unsubscribe,
+          droppedFileMethods: Object.keys(window.webtorrent.droppedFiles),
+          shellMethods: Object.keys(window.webtorrent.shell)
+        }
+        unsubscribe()
+        return result
+      })
+      t.deepEqual(globals, {
+        require: 'undefined',
+        process: 'undefined',
+        Buffer: 'undefined',
+        module: 'undefined',
+        bridge: 'object',
+        unsubscribe: 'function',
+        droppedFileMethods: ['getPath'],
+        shellMethods: ['openReleasePage']
+      }, 'main window exposes only the preload bridge')
+    })
+    .then(async () => {
+      const pages = app.electronApp.windows()
+      let hidden
+      for (const page of pages) {
+        if (await page.title() === 'WebTorrent Hidden Window') hidden = page
+      }
+      if (!hidden) throw new Error('Hidden WebTorrent window not found')
+      await hidden.evaluate(() => {
+        require('electron').ipcRenderer.send('setTitle', 'Rejected renderer title')
+      })
+      await setup.wait()
+      t.equal(await app.browserWindow.getTitle(), 'WebTorrent',
+        'main-only IPC rejects the hidden renderer')
+    })
+    .then(async () => {
       const about = await app.openAboutWindow()
       const actual = await about.evaluate(() => ({
         version: document.querySelector('#version-info').textContent.replace(/\s+/g, ' ').trim(),

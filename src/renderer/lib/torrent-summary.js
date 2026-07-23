@@ -6,21 +6,21 @@ module.exports = {
   getFileOrFolder
 }
 
-const path = require('path')
-const config = require('../../config')
+const api = require('./api')
+const config = require('./config')
 
 // Expects a torrentSummary
 // Returns an absolute path to the torrent file, or null if unavailable
 function getTorrentPath (torrentSummary) {
   if (!torrentSummary || !torrentSummary.torrentFileName) return null
-  return path.join(config.TORRENT_PATH, torrentSummary.torrentFileName)
+  return api.path.join(config.TORRENT_PATH, torrentSummary.torrentFileName)
 }
 
 // Expects a torrentSummary
 // Returns an absolute path to the poster image, or null if unavailable
 function getPosterPath (torrentSummary) {
   if (!torrentSummary || !torrentSummary.posterFileName) return null
-  const posterPath = path.join(config.POSTER_PATH, torrentSummary.posterFileName)
+  const posterPath = api.path.join(config.POSTER_PATH, torrentSummary.posterFileName)
   // Work around a Chrome bug (reproduced in vanilla Chrome, not just Electron):
   // Backslashes in URLS in CSS cause bizarre string encoding issues
   return posterPath.replace(/\\/g, '/')
@@ -53,6 +53,6 @@ function getByKey (state, torrentKey) {
 function getFileOrFolder (torrentSummary) {
   const ts = torrentSummary
   if (!ts.path || !ts.files || ts.files.length === 0) return null
-  const dirname = ts.files[0].path.split(path.sep)[0]
-  return path.join(ts.path, dirname)
+  const dirname = ts.files[0].path.split(api.path.sep)[0]
+  return api.path.join(ts.path, dirname)
 }

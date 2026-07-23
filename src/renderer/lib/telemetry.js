@@ -7,9 +7,8 @@ module.exports = {
   logPlayAttempt
 }
 
-const electron = require('electron')
-
-const config = require('../../config')
+const api = require('./api')
+const config = require('./config')
 
 let telemetry
 
@@ -18,9 +17,9 @@ function init (state) {
 
   // First app run
   if (!telemetry) {
-    const crypto = require('crypto')
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(32))
     telemetry = state.saved.telemetry = {
-      userID: crypto.randomBytes(32).toString('hex') // 256-bit random ID
+      userID: Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
     }
     reset()
   }
@@ -41,7 +40,7 @@ function send (state) {
     return reset()
   }
 
-  electron.ipcRenderer.invoke('sendTelemetry', telemetry)
+  api.telemetry.send(telemetry)
     .then(status => {
       if (status !== 200) {
         return console.error(`Error sending telemetry, status code: ${status}`)

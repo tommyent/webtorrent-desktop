@@ -3,11 +3,12 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; media-src 'self' data: blob: http://localhost:*; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'">
     <title>Main Window</title>
     <link rel="stylesheet" href="main.css">
   </head>
   <body>
     <div id='body'></div>
-    <script>require('../build/renderer/main.js')</script>
+    <script src="../build/renderer/main.js"></script>
   </body>
 </html>

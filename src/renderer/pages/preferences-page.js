@@ -8,7 +8,7 @@ const Heading = require('../components/heading')
 const PathSelector = require('../components/path-selector')
 
 const { dispatch } = require('../lib/dispatcher')
-const config = require('../../config')
+const config = require('../lib/config')
 
 class PreferencesPage extends React.Component {
   constructor (props) {

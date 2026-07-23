@@ -1,6 +1,4 @@
-const path = require('path')
-
-const { ipcRenderer } = require('electron')
+const api = require('../lib/api')
 const React = require('react')
 const PropTypes = require('prop-types')
 
@@ -29,11 +27,11 @@ class PathSelector extends React.Component {
 
   handleClick () {
     const opts = Object.assign({
-      defaultPath: path.dirname(this.props.value || ''),
+      defaultPath: api.path.dirname(this.props.value || ''),
       properties: ['openFile', 'openDirectory']
     }, this.props.dialog)
 
-    const filenames = ipcRenderer.sendSync('showOpenDialogSync', opts)
+    const filenames = api.dialogs.showOpen(opts)
     if (!Array.isArray(filenames)) return
     this.props.onChange && this.props.onChange(filenames[0])
   }

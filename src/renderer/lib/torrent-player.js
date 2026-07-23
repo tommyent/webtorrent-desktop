@@ -7,7 +7,7 @@ module.exports = {
   isPlayableTorrentSummary
 }
 
-const path = require('path')
+const api = require('./api')
 
 const mediaExtensions = require('./media-extensions')
 
@@ -45,7 +45,7 @@ function isMagnetLink (link) {
 
 function getFileExtension (file) {
   const name = typeof file === 'string' ? file : file.name
-  return path.extname(name).toLowerCase()
+  return api.path.extname(name).toLowerCase()
 }
 
 function isPlayableTorrentSummary (torrentSummary) {

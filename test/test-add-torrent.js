@@ -11,7 +11,7 @@ test('add-torrent', function (t) {
   setup.waitForLoad(app, t)
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'Big Buck Bunny'))
     // Add an existing torrent. The corresponding file is not present. Should be at 0%
-    .then(() => app.electron.ipcRenderer.send('openTorrentFile'))
+    .then(() => app.client.openTorrentFile())
     // The call to dialog.openFiles() is mocked. See mocks.js
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'm3.jpg'))
     .then(() => setup.screenshotCreateOrCompare(
@@ -26,7 +26,7 @@ test('add-torrent', function (t) {
     .then(() => setup.copy(
       path.join(__dirname, 'resources', 'm3.jpg'),
       path.join(config.TEST_DIR_DOWNLOAD, 'm3.jpg')))
-    .then(() => app.electron.ipcRenderer.send('openTorrentFile'))
+    .then(() => app.client.openTorrentFile())
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'm3.jpg'))
     .then(() => setup.screenshotCreateOrCompare(
       app, t, 'add-torrent-100-percent', '.torrent .name'))

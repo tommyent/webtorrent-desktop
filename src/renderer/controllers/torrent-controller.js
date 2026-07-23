@@ -1,5 +1,4 @@
-const path = require('path')
-const { ipcRenderer } = require('electron')
+const api = require('../lib/api')
 
 const TorrentSummary = require('../lib/torrent-summary')
 const sound = require('../lib/sound')
@@ -20,7 +19,7 @@ module.exports = class TorrentController {
 
       // Check if an existing (non-active) torrent has the same info hash
       if (torrents.find((t) => t.infoHash === infoHash)) {
-        ipcRenderer.send('wt-stop-torrenting', infoHash)
+        api.torrent.stop(infoHash)
         return dispatch('error', 'Cannot add duplicate torrent')
       }
 
@@ -75,10 +74,10 @@ module.exports = class TorrentController {
     dispatch('update')
 
     // Save the .torrent file, if it hasn't been saved already
-    if (!torrentSummary.torrentFileName) ipcRenderer.send('wt-save-torrent-file', torrentKey)
+    if (!torrentSummary.torrentFileName) api.torrent.saveFile(torrentKey)
 
     // Auto-generate a poster image, if it hasn't been generated already
-    if (!torrentSummary.posterFileName) ipcRenderer.send('wt-generate-torrent-poster', torrentKey)
+    if (!torrentSummary.posterFileName) api.torrent.generatePoster(torrentKey)
   }
 
   torrentDone (torrentKey, torrentInfo) {
@@ -93,7 +92,7 @@ module.exports = class TorrentController {
         this.state.dock.badge += 1
       }
       showDoneNotification(torrentSummary)
-      ipcRenderer.send('downloadFinished', getTorrentPath(torrentSummary))
+      api.dock.downloadFinished(getTorrentPath(torrentSummary))
     }
 
     dispatch('update')
@@ -166,7 +165,7 @@ module.exports = class TorrentController {
 function getTorrentPath (torrentSummary) {
   let itemPath = TorrentSummary.getFileOrFolder(torrentSummary)
   if (torrentSummary.files.length > 1) {
-    itemPath = path.dirname(itemPath)
+    itemPath = api.path.dirname(itemPath)
   }
   return itemPath
 }
@@ -178,7 +177,7 @@ function showDoneNotification (torrent) {
   })
 
   notif.onclick = () => {
-    ipcRenderer.send('show')
+    api.app.show()
   }
 
   // Only play notification sound if player is inactive

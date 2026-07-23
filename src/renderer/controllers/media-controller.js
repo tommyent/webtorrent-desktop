@@ -1,4 +1,4 @@
-const { ipcRenderer } = require('electron')
+const api = require('../lib/api')
 const telemetry = require('../lib/telemetry')
 const Playlist = require('../lib/playlist')
 
@@ -22,14 +22,14 @@ module.exports = class MediaController {
     if (state.location.url() === 'player') {
       telemetry.logPlayAttempt('error')
       state.playing.location = 'error'
-      ipcRenderer.send('checkForExternalPlayer', state.saved.prefs.externalPlayerPath)
-      ipcRenderer.once('checkForExternalPlayer', (e, isInstalled) => {
-        state.modal = {
-          id: 'unsupported-media-modal',
-          error,
-          externalPlayerInstalled: isInstalled
-        }
-      })
+      api.externalPlayer.check(state.saved.prefs.externalPlayerPath)
+        .then(isInstalled => {
+          state.modal = {
+            id: 'unsupported-media-modal',
+            error,
+            externalPlayerInstalled: isInstalled
+          }
+        })
     }
   }
 
@@ -61,14 +61,14 @@ module.exports = class MediaController {
       telemetry.logPlayAttempt('external')
 
       const mediaURL = Playlist.getCurrentLocalURL(state)
-      ipcRenderer.send('openExternalPlayer',
+      api.externalPlayer.open(
         state.saved.prefs.externalPlayerPath,
         mediaURL,
         state.window.title)
     }
 
     if (state.server != null) onServerRunning()
-    else ipcRenderer.once('wt-server-running', onServerRunning)
+    else api.torrent.onceServerRunning(onServerRunning)
   }
 
   externalPlayerNotFound () {

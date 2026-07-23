@@ -1,5 +1,5 @@
-const createTorrent = require('create-torrent')
-const path = require('path')
+const api = require('../lib/api')
+const config = require('../lib/config')
 const prettyBytes = require('prettier-bytes')
 const React = require('react')
 
@@ -28,7 +28,7 @@ class CreateTorrentPage extends React.Component {
     if (!pathPrefix) {
       pathPrefix = info.files.map((x) => x.path).reduce(findCommonPrefix)
       if (!pathPrefix.endsWith('/') && !pathPrefix.endsWith('\\')) {
-        pathPrefix = path.dirname(pathPrefix)
+        pathPrefix = api.path.dirname(pathPrefix)
       }
     }
 
@@ -47,12 +47,12 @@ class CreateTorrentPage extends React.Component {
       basePath = pathPrefix
     } else {
       // Multi file torrent: /a/b/{foo, bar}.jpg -> torrent name 'b', path '/a'
-      defaultName = path.basename(pathPrefix)
-      basePath = path.dirname(pathPrefix)
+      defaultName = api.path.basename(pathPrefix)
+      basePath = api.path.dirname(pathPrefix)
     }
 
     // Default trackers
-    const trackers = createTorrent.announceList.join('\n')
+    const trackers = config.DEFAULT_ANNOUNCE_LIST.join('\n')
 
     this.state = {
       comment: '',
@@ -127,7 +127,7 @@ class CreateTorrentPage extends React.Component {
     const maxFileElems = 100
     const files = this.state.files
     const fileElems = files.slice(0, maxFileElems).map((file, i) => {
-      const relativePath = path.relative(this.state.pathPrefix, file.path)
+      const relativePath = api.path.relative(this.state.pathPrefix, file.path)
       return (<div key={i}>{relativePath}</div>)
     })
     if (files.length > maxFileElems) {

@@ -1,6 +1,6 @@
 const React = require('react')
 const { TextField } = require('./controls')
-const { clipboard } = require('electron')
+const api = require('../lib/api')
 
 const ModalOKCancel = require('./modal-ok-cancel')
 const { dispatch, dispatcher } = require('../lib/dispatcher')
@@ -32,7 +32,7 @@ module.exports = class OpenTorrentAddressModal extends React.Component {
 
   componentDidMount () {
     this.torrentURL.input.focus()
-    const clipboardContent = clipboard.readText()
+    const clipboardContent = api.clipboard.readText()
 
     if (isMagnetLink(clipboardContent)) {
       this.torrentURL.input.value = clipboardContent

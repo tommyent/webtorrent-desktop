@@ -1,5 +1,5 @@
 const React = require('react')
-const { shell } = require('electron')
+const api = require('../lib/api')
 
 const ModalOKCancel = require('./modal-ok-cancel')
 const { dispatch } = require('../lib/dispatcher')
@@ -24,8 +24,7 @@ module.exports = class UpdateAvailableModal extends React.Component {
     )
 
     function handleShow () {
-      // TODO: use the GitHub urls from config.js
-      shell.openExternal('https://github.com/webtorrent/webtorrent-desktop/releases')
+      api.shell.openReleasePage()
       dispatch('exitModal')
     }
 

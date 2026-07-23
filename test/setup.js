@@ -77,6 +77,7 @@ function createApp () {
   app.client = {
     click: (selector) => app.page.locator(`${selector}:visible`).first().click(),
     moveToObject: (selector) => app.page.locator(`${selector}:visible`).first().hover(),
+    openTorrentFile: () => app.page.evaluate(() => window.webtorrent.dialogs.openTorrentFile()),
     // Wait on the text element, not the container: containers like .modal have
     // only position:fixed children, so their own bounding box is empty and
     // Playwright considers them invisible.
@@ -107,15 +108,6 @@ function createApp () {
     getTitle: async () => {
       const windowHandle = await app.electronApp.browserWindow(app.page)
       return windowHandle.evaluate((window) => window.getTitle())
-    }
-  }
-
-  app.electron = {
-    ipcRenderer: {
-      send: (channel, ...args) => app.page.evaluate(
-        ({ channel, args }) => require('electron').ipcRenderer.send(channel, ...args),
-        { channel, args }
-      )
     }
   }
 

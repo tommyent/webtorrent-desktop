@@ -1,6 +1,4 @@
-const fs = require('fs')
-const path = require('path')
-const { ipcRenderer } = require('electron')
+const api = require('../lib/api')
 
 const { dispatch } = require('../lib/dispatcher')
 const { TorrentKeyNotFoundError } = require('../lib/errors')
@@ -18,9 +16,9 @@ module.exports = class TorrentListController {
   // Adds a torrent to the list, starts downloading/seeding.
   // TorrentID can be a magnet URI, infohash, or torrent file: https://git.io/vik9M
   addTorrent (torrentId) {
-    if (torrentId.path) {
+    if (typeof torrentId !== 'string') {
       // Use path string instead of W3C File object
-      torrentId = torrentId.path
+      torrentId = api.droppedFiles.getPath(torrentId)
     }
 
     // Trim extra spaces off pasted magnet links
@@ -36,7 +34,7 @@ module.exports = class TorrentListController {
     const torrentKey = this.state.nextTorrentKey++
     const path = this.state.saved.prefs.downloadPath
 
-    ipcRenderer.send('wt-start-torrenting', torrentKey, torrentId, path)
+    api.torrent.start(torrentKey, torrentId, path)
 
     dispatch('backToList')
   }
@@ -62,16 +60,18 @@ module.exports = class TorrentListController {
       return
     }
 
-    // ... or it will be an array of mixed file and folder paths. We have to walk
-    // through all the folders and find the files
-    findFilesRecursive(files, (allFiles) => this.showCreateTorrent(allFiles))
+    // ... or it will be an array of mixed file and folder paths. Inspect them
+    // in the main process, then pass only serializable metadata to this page.
+    api.torrent.inspectCreateInput(files)
+      .then(allFiles => this.showCreateTorrent(allFiles))
+      .catch(err => dispatch('error', err))
   }
 
   // Creates a new torrent and start seeeding
   createTorrent (options) {
     const state = this.state
     const torrentKey = state.nextTorrentKey++
-    ipcRenderer.send('wt-create-torrent', torrentKey, options)
+    api.torrent.create(torrentKey, options)
     state.location.cancel()
   }
 
@@ -93,17 +93,15 @@ module.exports = class TorrentListController {
     if (!fileOrFolder) return start()
 
     // Existing torrent: check that the path is still there
-    fs.stat(fileOrFolder, err => {
-      if (err) {
+    api.torrent.checkPath(fileOrFolder)
+      .then(exists => {
+        if (exists) return start()
         s.error = 'path-missing'
         dispatch('backToList')
-        return
-      }
-      start()
-    })
+      })
 
     function start () {
-      ipcRenderer.send('wt-start-torrenting',
+      api.torrent.start(
         s.torrentKey,
         TorrentSummary.getTorrentId(s),
         s.path,
@@ -113,7 +111,7 @@ module.exports = class TorrentListController {
   }
 
   setGlobalTrackers (globalTrackers) {
-    ipcRenderer.send('wt-set-global-trackers', globalTrackers)
+    api.torrent.setGlobalTrackers(globalTrackers)
   }
 
   // TODO: use torrentKey, not infoHash
@@ -134,7 +132,7 @@ module.exports = class TorrentListController {
       if (torrentSummary.status === 'downloading' ||
           torrentSummary.status === 'seeding') {
         torrentSummary.status = 'paused'
-        ipcRenderer.send('wt-stop-torrenting', torrentSummary.infoHash)
+        api.torrent.stop(torrentSummary.infoHash)
       }
     })
     sound.play('DISABLE')
@@ -152,7 +150,7 @@ module.exports = class TorrentListController {
 
   pauseTorrent (torrentSummary, playSound) {
     torrentSummary.status = 'paused'
-    ipcRenderer.send('wt-stop-torrenting', torrentSummary.infoHash)
+    api.torrent.stop(torrentSummary.infoHash)
 
     if (playSound) sound.play('DISABLE')
   }
@@ -189,7 +187,7 @@ module.exports = class TorrentListController {
 
     // Let the WebTorrent process know to start or stop fetching that file
     if (torrentSummary.status !== 'paused') {
-      ipcRenderer.send('wt-select-files', infoHash, torrentSummary.selections)
+      api.torrent.selectFiles(infoHash, torrentSummary.selections)
     }
   }
 
@@ -256,7 +254,7 @@ module.exports = class TorrentListController {
     const torrentSummary = TorrentSummary.getByKey(this.state, infoHash)
     // Native menus can only be built in the main process; clicks come back
     // through the same dispatch() channel the application menu uses.
-    ipcRenderer.send('openTorrentListContextMenu', {
+    api.menu.openTorrentContext({
       infoHash: torrentSummary.infoHash,
       magnetURI: torrentSummary.magnetURI,
       torrentKey: torrentSummary.torrentKey,
@@ -274,10 +272,10 @@ module.exports = class TorrentListController {
     const torrentSummary = TorrentSummary.getByKey(this.state, torrentKey)
     if (!torrentSummary) throw new TorrentKeyNotFoundError(torrentKey)
     const downloadPath = this.state.saved.prefs.downloadPath
-    const newFileName = path.parse(torrentSummary.name).name + '.torrent'
+    const newFileName = api.path.parse(torrentSummary.name).name + '.torrent'
     const opts = {
       title: 'Save Torrent File',
-      defaultPath: path.join(downloadPath, newFileName),
+      defaultPath: api.path.join(downloadPath, newFileName),
       filters: [
         { name: 'Torrent Files', extensions: ['torrent'] },
         { name: 'All Files', extensions: ['*'] }
@@ -285,86 +283,30 @@ module.exports = class TorrentListController {
       buttonLabel: 'Save'
     }
 
-    const savePath = ipcRenderer.sendSync('showSaveDialogSync', opts)
+    const savePath = api.dialogs.showSave(opts)
 
     if (!savePath) return // They clicked Cancel
     console.log('Saving torrent ' + torrentKey + ' to ' + savePath)
     const torrentPath = TorrentSummary.getTorrentPath(torrentSummary)
-    fs.readFile(torrentPath, (err, torrentFile) => {
-      if (err) return dispatch('error', err)
-      fs.writeFile(savePath, torrentFile, err => {
-        if (err) return dispatch('error', err)
-      })
-    })
+    api.torrent.copyFile(torrentPath, savePath)
+      .catch(err => dispatch('error', err))
   }
-}
-
-// Recursively finds {name, path, size} for all files in a folder
-// Calls `cb` on success, calls `onError` on failure
-function findFilesRecursive (paths, cb_) {
-  if (paths.length === 0) {
-    cb_([])
-    return
-  }
-
-  if (paths.length > 1) {
-    let numComplete = 0
-    const ret = []
-    paths.forEach(path => {
-      findFilesRecursive([path], fileObjs => {
-        ret.push(...fileObjs)
-        if (++numComplete === paths.length) {
-          ret.sort((a, b) => a.path < b.path ? -1 : Number(a.path > b.path))
-          cb_(ret)
-        }
-      })
-    })
-    return
-  }
-
-  const fileOrFolder = paths[0]
-  fs.stat(fileOrFolder, (err, stat) => {
-    if (err) return dispatch('error', err)
-
-    // Files: return name, path, and size
-    if (!stat.isDirectory()) {
-      const filePath = fileOrFolder
-      return cb_([{
-        name: path.basename(filePath),
-        path: filePath,
-        size: stat.size
-      }])
-    }
-
-    // Folders: recurse, make a list of all the files
-    const folderPath = fileOrFolder
-    fs.readdir(folderPath, (err, fileNames) => {
-      if (err) return dispatch('error', err)
-      const paths = fileNames.map((fileName) => path.join(folderPath, fileName))
-      findFilesRecursive(paths, cb_)
-    })
-  })
-}
-
-function deleteFile (path) {
-  if (!path) return
-  fs.unlink(path, err => {
-    if (err) dispatch('error', err)
-  })
 }
 
 // Delete all files in a torrent
 function moveItemToTrash (torrentSummary) {
   const filePath = TorrentSummary.getFileOrFolder(torrentSummary)
-  if (filePath) ipcRenderer.send('moveItemToTrash', filePath)
+  if (filePath) api.torrent.moveDataToTrash(filePath)
 }
 
 function deleteTorrentFile (torrentSummary, deleteData) {
-  ipcRenderer.send('wt-stop-torrenting', torrentSummary.infoHash)
+  api.torrent.stop(torrentSummary.infoHash)
 
-  // remove torrent and poster file
-  deleteFile(TorrentSummary.getTorrentPath(torrentSummary))
-  deleteFile(TorrentSummary.getPosterPath(torrentSummary))
+  // remove torrent and poster files
+  api.torrent.deleteMetadata(
+    torrentSummary.torrentFileName,
+    torrentSummary.posterFileName
+  ).catch(err => dispatch('error', err))
 
   // optionally delete the torrent data
   if (deleteData) moveItemToTrash(torrentSummary)
