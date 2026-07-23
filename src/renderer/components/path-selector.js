@@ -1,12 +1,11 @@
 const path = require('path')
 
-const colors = require('material-ui/styles/colors')
 const { ipcRenderer } = require('electron')
 const React = require('react')
 const PropTypes = require('prop-types')
 
-const RaisedButton = require('material-ui/RaisedButton').default
-const TextField = require('material-ui/TextField').default
+const { RaisedButton } = require('./controls')
+const { TextField } = require('./controls')
 
 // Lets you pick a file or directory.
 // Uses the system Open File dialog.
@@ -54,7 +53,7 @@ class PathSelector extends React.Component {
       whiteSpace: 'nowrap'
     }
     const textareaStyle = {
-      color: colors.grey50
+      color: '#fafafa'
     }
     const textFieldStyle = {
       flex: '1'

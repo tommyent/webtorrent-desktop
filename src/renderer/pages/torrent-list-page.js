@@ -1,8 +1,8 @@
 const React = require('react')
 const prettyBytes = require('prettier-bytes')
 
-const Checkbox = require('material-ui/Checkbox').default
-const LinearProgress = require('material-ui/LinearProgress').default
+const { Checkbox } = require('../components/controls')
+const { LinearProgress } = require('../components/controls')
 
 const TorrentSummary = require('../lib/torrent-summary')
 const TorrentPlayer = require('../lib/torrent-player')

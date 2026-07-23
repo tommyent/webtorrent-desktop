@@ -1,7 +1,7 @@
 const React = require('react')
 const PropTypes = require('prop-types')
 
-const RaisedButton = require('material-ui/RaisedButton').default
+const { RaisedButton } = require('./controls')
 
 class ShowMore extends React.Component {
   static get propTypes () {

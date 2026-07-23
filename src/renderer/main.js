@@ -1,17 +1,3 @@
-/**
- * Perf optimization: Hook into require() to modify how certain modules load:
- *
- * - `inline-style-prefixer` (used by `material-ui`) takes ~40ms. It is not
- *   actually used because auto-prefixing is disabled with
- *   `darkBaseTheme.userAgent = false`. Return a fake object.
- */
-const Module = require('module')
-const _require = Module.prototype.require
-Module.prototype.require = function (id) {
-  if (id === 'inline-style-prefixer') return {}
-  return _require.apply(this, arguments)
-}
-
 console.time('init')
 
 // Perf optimization: Start asynchronously read on config file before all the

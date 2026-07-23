@@ -1,5 +1,5 @@
 const React = require('react')
-const TextField = require('material-ui/TextField').default
+const { TextField } = require('./controls')
 const { clipboard } = require('electron')
 
 const ModalOKCancel = require('./modal-ok-cancel')

@@ -1,6 +1,6 @@
 const React = require('react')
-const FlatButton = require('material-ui/FlatButton').default
-const RaisedButton = require('material-ui/RaisedButton').default
+const { FlatButton } = require('./controls')
+const { RaisedButton } = require('./controls')
 
 module.exports = class ModalOKCancel extends React.Component {
   render () {

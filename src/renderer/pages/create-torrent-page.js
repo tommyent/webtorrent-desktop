@@ -5,10 +5,10 @@ const React = require('react')
 
 const { dispatch, dispatcher } = require('../lib/dispatcher')
 
-const FlatButton = require('material-ui/FlatButton').default
-const RaisedButton = require('material-ui/RaisedButton').default
-const TextField = require('material-ui/TextField').default
-const Checkbox = require('material-ui/Checkbox').default
+const { FlatButton } = require('../components/controls')
+const { RaisedButton } = require('../components/controls')
+const { TextField } = require('../components/controls')
+const { Checkbox } = require('../components/controls')
 
 const CreateTorrentErrorPage = require('../components/create-torrent-error-page')
 const Heading = require('../components/heading')

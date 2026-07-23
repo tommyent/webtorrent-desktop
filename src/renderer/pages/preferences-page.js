@@ -1,10 +1,9 @@
 const React = require('react')
 const PropTypes = require('prop-types')
 
-const colors = require('material-ui/styles/colors')
-const Checkbox = require('material-ui/Checkbox').default
-const RaisedButton = require('material-ui/RaisedButton').default
-const TextField = require('material-ui/TextField').default
+const { Checkbox } = require('../components/controls')
+const { RaisedButton } = require('../components/controls')
+const { TextField } = require('../components/controls')
 const Heading = require('../components/heading')
 const PathSelector = require('../components/path-selector')
 
@@ -274,7 +273,7 @@ class PreferencesPage extends React.Component {
 
   render () {
     const style = {
-      color: colors.grey400,
+      color: '#bdbdbd',
       marginLeft: 25,
       marginRight: 25
     }

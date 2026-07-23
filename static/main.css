@@ -983,3 +983,119 @@ video::-webkit-media-text-track-container {
 .control * {
   cursor: default !important;
 }
+
+/*
+ * NATIVE CONTROLS (replaced material-ui 0.x)
+ */
+
+button.btn {
+  display: inline-block;
+  border: none;
+  border-radius: 2px;
+  height: 36px;
+  min-width: 88px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+}
+
+button.btn:focus-visible {
+  outline: 2px solid #90caf9;
+  outline-offset: 2px;
+}
+
+button.btn[disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.btn.raised {
+  background: #e0e0e0;
+  color: #212121;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+button.btn.raised.primary {
+  background: #fafafa;
+  color: #212121;
+}
+
+button.btn.raised:not([disabled]):hover {
+  filter: brightness(1.06);
+}
+
+button.btn.flat:not([disabled]):hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+label.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+label.checkbox input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #ff5252;
+  cursor: pointer;
+}
+
+label.checkbox input[type='checkbox']:focus-visible {
+  outline: 2px solid #90caf9;
+  outline-offset: 2px;
+}
+
+.text-field {
+  display: inline-block;
+}
+
+.text-field input,
+.text-field textarea {
+  width: 100%;
+  padding: 4px 0;
+  border: none;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.6);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.text-field input:focus,
+.text-field textarea:focus {
+  outline: none;
+  border-bottom: 2px solid #ff5252;
+  padding-bottom: 3px;
+}
+
+.text-field input[disabled],
+.text-field input[readonly] {
+  color: rgba(128, 128, 128, 0.9);
+  border-bottom-style: dotted;
+}
+
+.linear-progress {
+  display: inline-block;
+  height: 8px;
+  width: 30px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(128, 128, 128, 0.35);
+  vertical-align: middle;
+}
+
+.linear-progress-bar {
+  height: 100%;
+  background: #fafafa;
+}

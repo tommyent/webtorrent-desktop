@@ -1,8 +1,6 @@
 const React = require('react')
 const PropTypes = require('prop-types')
 
-const colors = require('material-ui/styles/colors')
-
 class Heading extends React.Component {
   static get propTypes () {
     return {
@@ -19,7 +17,7 @@ class Heading extends React.Component {
   render () {
     const HeadingTag = 'h' + this.props.level
     const style = {
-      color: colors.grey100,
+      color: '#f5f5f5',
       fontSize: 20,
       marginBottom: 15,
       marginTop: 30
