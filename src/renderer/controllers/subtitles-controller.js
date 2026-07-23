@@ -59,7 +59,7 @@ module.exports = class SubtitlesController {
         // Finally, make sure no two tracks have the same label
         relabelSubtitles(subtitles)
       })
-      .catch(() => dispatch('error', 'Can\'t parse subtitles file.'))
+      .catch(err => dispatch('error', err))
   }
 
   checkForSubtitles () {

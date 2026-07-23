@@ -366,11 +366,12 @@ function init () {
   ipcMain.emit = (name, e, ...args) => {
     // Relay messages between the main window and the WebTorrent hidden window
     if (name.startsWith('wt-') && !app.isQuitting) {
-      console.dir(e.sender.getTitle())
-      if (e.sender.getTitle() === 'WebTorrent Hidden Window') {
+      if (windows.webtorrent.win && e.sender === windows.webtorrent.win.webContents) {
         // Send message to main window
         windows.main.send(name, ...args)
         log('webtorrent: got %s', name)
+      } else if (!windows.main.win || e.sender !== windows.main.win.webContents) {
+        log('webtorrent: ignored %s from unknown renderer', name)
       } else if (app.ipcReadyWebTorrent) {
         // Send message to webtorrent window
         windows.webtorrent.send(name, ...args)

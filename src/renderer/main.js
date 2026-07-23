@@ -443,7 +443,6 @@ function setDimensions (dimensions) {
     width: window.outerWidth,
     height: window.outerHeight
   }
-  state.window.wasMaximized = electron.ipcRenderer.sendSync('getWindowInfo').isMaximized
 
   // Limit window size to screen size
   const screenWidth = window.screen.width
