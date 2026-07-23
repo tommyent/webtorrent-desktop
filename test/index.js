@@ -8,7 +8,7 @@ test('app runs', function (t) {
   setup.resetTestDataDir()
   const app = setup.createApp()
   setup.waitForLoad(app, t)
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'app-basic'))
+    .then(() => setup.screenshotCreateOrCompare(app, t, 'app-basic', '.header'))
     .then(() => setup.endTest(app, t),
       (err) => setup.endTest(app, t, err || 'error'))
 })

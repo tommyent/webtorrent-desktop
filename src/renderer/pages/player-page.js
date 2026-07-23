@@ -183,11 +183,11 @@ function renderMedia (state) {
 
     // check if we can decode video and audio track
     if (state.playing.type === 'video') {
-      if (mediaElement.videoTracks.length === 0) {
+      if (mediaElement.videoTracks && mediaElement.videoTracks.length === 0) {
         dispatch('mediaError', 'Video codec unsupported')
       }
 
-      if (mediaElement.audioTracks.length === 0) {
+      if (mediaElement.audioTracks && mediaElement.audioTracks.length === 0) {
         dispatch('mediaError', 'Audio codec unsupported')
       }
 
@@ -203,7 +203,7 @@ function renderMedia (state) {
 
       // set audioTracks
       const tracks = []
-      for (let i = 0; i < mediaElement.audioTracks.length; i++) {
+      for (let i = 0; mediaElement.audioTracks && i < mediaElement.audioTracks.length; i++) {
         tracks.push({
           label: mediaElement.audioTracks[i].label || `Track ${i + 1}`,
           language: mediaElement.audioTracks[i].language
@@ -216,7 +216,7 @@ function renderMedia (state) {
 
     // check if we can decode audio track
     if (state.playing.type === 'audio') {
-      if (mediaElement.audioTracks.length === 0) {
+      if (mediaElement.audioTracks && mediaElement.audioTracks.length === 0) {
         dispatch('mediaError', 'Audio codec unsupported')
       }
 

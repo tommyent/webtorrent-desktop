@@ -45,7 +45,7 @@
 - On a Mac:
 
   ```
-  npm run package -- darwin --sign
+  npm run package -- darwin --arch=universal --sign
   ```
 
   Move the `.zip` and `.dmg` file somewhere because the next step wipes the `dist/` folder away.

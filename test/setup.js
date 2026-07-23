@@ -1,8 +1,8 @@
-const Application = require('spectron').Application
 const { copyFileSync } = require('fs')
 const fs = require('fs')
 const parseTorrent = require('parse-torrent')
 const path = require('path')
+const { _electron: electron } = require('playwright')
 const PNG = require('pngjs').PNG
 const rimraf = require('rimraf')
 
@@ -24,21 +24,102 @@ module.exports = {
 }
 
 // Runs WebTorrent Desktop.
-// Returns a promise that resolves to a Spectron Application once the app has loaded.
-// Takes a Tape test. Makes some basic assertions to verify that the app loaded correctly.
-function createApp (t) {
+// Returns a small compatibility wrapper around Playwright's Electron driver.
+// Keeping the test-facing API stable makes the migration from Spectron easy to review.
+function createApp () {
   const userDataDir = process.platform === 'win32'
     ? path.join('C:\\Windows\\Temp', 'WebTorrentTest')
     : path.join('/tmp', 'WebTorrentTest')
+  const rootPath = path.join(__dirname, '..')
+  const app = {}
+  const reportedRendererErrors = new Set()
 
-  return new Application({
-    path: path.join(__dirname, '..', 'node_modules', '.bin',
-      'electron' + (process.platform === 'win32' ? '.cmd' : '')),
-    args: ['-r', path.join(__dirname, 'mocks.js'), path.join(__dirname, '..')],
-    chromeDriverArgs: [`--user-data-dir=${userDataDir}`],
-    env: { NODE_ENV: 'test' },
-    waitTimeout: 10e3
-  })
+  function reportRendererError (err) {
+    const signature = err.stack || err.message || String(err)
+    if (reportedRendererErrors.has(signature)) return
+    reportedRendererErrors.add(signature)
+    console.error('Renderer error:', err)
+  }
+
+  async function waitForPageTitle (expectedTitle) {
+    const deadline = Date.now() + 10e3
+    while (Date.now() < deadline) {
+      for (const page of app.electronApp.windows()) {
+        if (await page.title() === expectedTitle) return page
+      }
+      await wait(100)
+    }
+    throw new Error(`Timed out waiting for Electron window "${expectedTitle}"`)
+  }
+
+  app.start = async function () {
+    app.electronApp = await electron.launch({
+      args: [
+        '-r',
+        path.join(__dirname, 'mocks.js'),
+        rootPath,
+        '--test',
+        // Must come after the app path: sliceArgv() in src/main/index.js drops the
+        // first 4 args in test mode, and later '--' flags are ignored by processArgv().
+        `--user-data-dir=${userDataDir}`
+      ],
+      cwd: rootPath
+    })
+    await app.electronApp.firstWindow()
+    app.page = await waitForPageTitle('WebTorrent Hidden Window')
+    app.page.on('pageerror', reportRendererError)
+  }
+
+  app.stop = async function () {
+    if (app.electronApp) await app.electronApp.close()
+  }
+
+  app.client = {
+    click: (selector) => app.page.locator(`${selector}:visible`).first().click(),
+    moveToObject: (selector) => app.page.locator(`${selector}:visible`).first().hover(),
+    // Wait on the text element, not the container: containers like .modal have
+    // only position:fixed children, so their own bounding box is empty and
+    // Playwright considers them invisible.
+    waitUntilTextExists: (selector, expected, timeout) => app.page
+      .locator(selector)
+      .getByText(expected)
+      .first()
+      .waitFor({ state: 'visible', timeout: timeout || 10e3 }),
+    waitUntilWindowLoaded: () => app.page.waitForLoadState('load'),
+    windowByIndex: async (index) => {
+      if (index !== 1) throw new Error(`Unsupported legacy window index: ${index}`)
+      app.page = await waitForPageTitle('Main Window')
+      app.page.on('pageerror', reportRendererError)
+    }
+  }
+
+  app.webContents = {
+    executeJavaScript: (source) => app.page.evaluate(source),
+    getTitle: () => app.page.title()
+  }
+
+  app.browserWindow = {
+    capturePage: () => app.page.screenshot(),
+    focus: async () => {
+      const windowHandle = await app.electronApp.browserWindow(app.page)
+      await windowHandle.evaluate((window) => window.focus())
+    },
+    getTitle: async () => {
+      const windowHandle = await app.electronApp.browserWindow(app.page)
+      return windowHandle.evaluate((window) => window.getTitle())
+    }
+  }
+
+  app.electron = {
+    ipcRenderer: {
+      send: (channel, ...args) => app.page.evaluate(
+        ({ channel, args }) => require('electron').ipcRenderer.send(channel, ...args),
+        { channel, args }
+      )
+    }
+  }
+
+  return app
 }
 
 // Starts the app, waits for it to load, returns a promise
@@ -47,8 +128,9 @@ function waitForLoad (app, t, opts) {
   return app.start().then(function () {
     return app.client.waitUntilWindowLoaded()
   }).then(function () {
-    // Offline mode
-    if (!opts.online) app.webContents.executeJavaScript('testOfflineMode()')
+    // Offline mode. testOfflineMode is async (it awaits the webtorrent
+    // import and destroys the online client), so wait for it to finish.
+    if (!opts.online) return app.webContents.executeJavaScript('testOfflineMode()')
   }).then(function () {
     // Switch to the main window. Index 0 is apparently the hidden webtorrent window...
     return app.client.windowByIndex(1)
@@ -73,14 +155,16 @@ function wait (ms) {
 // Quit the app, end the test, either in success (!err) or failure (err)
 function endTest (app, t, err) {
   return app.stop().then(function () {
-    t.end(err)
+    // Guard: tape's timeoutAfter may have already ended the test; calling
+    // t.end() again throws and cascades into every remaining test.
+    if (!t.calledEnd) t.end(err)
   })
 }
 
 // Takes a screenshot of the app
 // If we already have a reference under test/screenshots, assert that they're the same
 // Otherwise, create the reference screenshot: test/screenshots/<platform>/<name>.png
-function screenshotCreateOrCompare (app, t, name) {
+function screenshotCreateOrCompare (app, t, name, hoverSelector) {
   const ssDir = path.join(__dirname, 'screenshots', process.platform)
 
   // check that path exists otherwise create it
@@ -99,6 +183,9 @@ function screenshotCreateOrCompare (app, t, name) {
 
   return app.browserWindow.focus()
     .then(() => wait())
+    // Native focus can restore the OS pointer after Playwright hover events.
+    // Reapply intentional hover or pointer parking immediately before capture.
+    .then(() => hoverSelector && app.client.moveToObject(hoverSelector))
     .then(() => app.browserWindow.capturePage())
     .then(function (buffer) {
       if (ssBuf.length === 0) {

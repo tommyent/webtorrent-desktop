@@ -345,6 +345,11 @@ module.exports = class TorrentListController {
 // Recursively finds {name, path, size} for all files in a folder
 // Calls `cb` on success, calls `onError` on failure
 function findFilesRecursive (paths, cb_) {
+  if (paths.length === 0) {
+    cb_([])
+    return
+  }
+
   if (paths.length > 1) {
     let numComplete = 0
     const ret = []

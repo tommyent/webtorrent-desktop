@@ -26,7 +26,7 @@ function init (state, options) {
     return main.win.show()
   }
 
-  const initialBounds = Object.assign(config.WINDOW_INITIAL_BOUNDS, state.saved.bounds)
+  const initialBounds = Object.assign({}, config.WINDOW_INITIAL_BOUNDS, state.saved.bounds)
 
   const win = main.win = new BrowserWindow({
     backgroundColor: '#282828',
@@ -44,7 +44,6 @@ function init (state, options) {
       nodeIntegration: true,
       contextIsolation: false,
       enableBlinkFeatures: 'AudioVideoTracks',
-      enableRemoteModule: true,
       backgroundThrottling: false
     },
     x: initialBounds.x,
@@ -125,7 +124,7 @@ function hide () {
 
 function send (...args) {
   if (!main.win) return
-  main.win.send(...args)
+  main.win.webContents.send(...args)
 }
 
 /**

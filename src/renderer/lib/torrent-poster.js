@@ -7,7 +7,7 @@ const mediaExtensions = require('./media-extensions')
 
 const msgNoSuitablePoster = 'Cannot generate a poster from any files in the torrent'
 
-function torrentPoster (torrent, cb) {
+function torrentPoster (torrent, serverBaseURL, cb) {
   // First, try to use a poster image if available
   const posterFile = torrent.files.filter(file => /^poster\.(jpg|png|gif)$/.test(file.name))[0]
   if (posterFile) return extractPoster(posterFile, cb)
@@ -30,7 +30,7 @@ function torrentPoster (torrent, cb) {
     case 'image':
       return torrentPosterFromImage(torrent, cb)
     case 'video':
-      return torrentPosterFromVideo(torrent, cb)
+      return torrentPosterFromVideo(torrent, serverBaseURL, cb)
   }
 }
 
@@ -123,51 +123,44 @@ function torrentPosterFromAudio (torrent, cb) {
   })
 
   const extname = path.extname(bestCover.file.name)
-  bestCover.file.getBuffer((err, buf) => cb(err, buf, extname))
+  // webtorrent 3 replaced file.getBuffer(cb) with file.arrayBuffer()
+  bestCover.file.arrayBuffer().then(ab => cb(null, Buffer.from(ab), extname), cb)
 }
 
-function torrentPosterFromVideo (torrent, cb) {
+function torrentPosterFromVideo (torrent, serverBaseURL, cb) {
   const file = getLargestFileByExtension(torrent, mediaExtensions.video)
 
-  const index = torrent.files.indexOf(file)
+  // Stream the frame over the shared client server (webtorrent 3 removed
+  // per-torrent servers). file.streamURL is server-relative.
+  const url = serverBaseURL + file.streamURL
+  const video = document.createElement('video')
+  video.addEventListener('canplay', onCanPlay)
 
-  const server = torrent.createServer(0)
-  server.listen(0, onListening)
+  video.volume = 0
+  video.src = url
+  video.play()
 
-  function onListening () {
-    const port = server.address().port
-    const url = 'http://localhost:' + port + '/' + index
-    const video = document.createElement('video')
-    video.addEventListener('canplay', onCanPlay)
+  function onCanPlay () {
+    video.removeEventListener('canplay', onCanPlay)
+    video.addEventListener('seeked', onSeeked)
 
-    video.volume = 0
-    video.src = url
-    video.play()
+    video.currentTime = Math.min((video.duration || 600) * 0.03, 60)
+  }
 
-    function onCanPlay () {
-      video.removeEventListener('canplay', onCanPlay)
-      video.addEventListener('seeked', onSeeked)
+  function onSeeked () {
+    video.removeEventListener('seeked', onSeeked)
 
-      video.currentTime = Math.min((video.duration || 600) * 0.03, 60)
-    }
+    const frame = captureFrame(video)
+    const buf = frame && frame.image
 
-    function onSeeked () {
-      video.removeEventListener('seeked', onSeeked)
+    // unload video element
+    video.pause()
+    video.src = ''
+    video.load()
 
-      const frame = captureFrame(video)
-      const buf = frame && frame.image
+    if (buf.length === 0) return cb(new Error(msgNoSuitablePoster))
 
-      // unload video element
-      video.pause()
-      video.src = ''
-      video.load()
-
-      server.destroy()
-
-      if (buf.length === 0) return cb(new Error(msgNoSuitablePoster))
-
-      cb(null, buf, '.jpg')
-    }
+    cb(null, buf, '.jpg')
   }
 }
 
@@ -178,5 +171,5 @@ function torrentPosterFromImage (torrent, cb) {
 
 function extractPoster (file, cb) {
   const extname = path.extname(file.name)
-  file.getBuffer((err, buf) => cb(err, buf, extname))
+  file.arrayBuffer().then(ab => cb(null, Buffer.from(ab), extname), cb)
 }

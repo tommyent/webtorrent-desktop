@@ -14,7 +14,8 @@ test('add-torrent', function (t) {
     .then(() => app.electron.ipcRenderer.send('openTorrentFile'))
     // The call to dialog.openFiles() is mocked. See mocks.js
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'm3.jpg'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'add-torrent-0-percent'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'add-torrent-0-percent', '.header'))
     // Delete the torrent.
     .then(() => app.client.moveToObject('.torrent'))
     .then(() => setup.wait())
@@ -27,8 +28,8 @@ test('add-torrent', function (t) {
       path.join(config.TEST_DIR_DOWNLOAD, 'm3.jpg')))
     .then(() => app.electron.ipcRenderer.send('openTorrentFile'))
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'm3.jpg'))
-    .then(() => app.client.moveToObject('.torrent'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'add-torrent-100-percent'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'add-torrent-100-percent', '.torrent .name'))
     .then(() => setup.endTest(app, t),
       (err) => setup.endTest(app, t, err || 'error'))
 })
@@ -71,8 +72,8 @@ test('create-torrent', function (t) {
     // Click OK to create the torrent
     .then(() => app.client.click('.control.create-torrent-button'))
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'tmp.jpg'))
-    .then(() => app.client.moveToObject('.torrent'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'create-torrent-100-percent'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'create-torrent-100-percent', '.torrent .name'))
     // Click "Save Torrent File As..." on the new torrent
     .then(() => app.webContents.executeJavaScript(
       'dispatch("saveTorrentFileAs", 6)'))

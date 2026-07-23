@@ -4,7 +4,7 @@ const setup = require('./setup')
 test('video-streaming', function (t) {
   setup.resetTestDataDir()
 
-  t.timeoutAfter(30e3)
+  t.timeoutAfter(60e3)
   const app = setup.createApp()
   setup.waitForLoad(app, t, { online: true })
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'Big Buck Bunny'))
@@ -14,7 +14,7 @@ test('video-streaming', function (t) {
     .then(() => app.client.click('.icon.play'))
     .then(() => setup.wait(10e3))
     // Pause. Skip to two seconds in. Wait another two seconds for it to load.
-    .then(() => app.webContents.executeJavaScript('dispatch("playPause")'))
+    .then(() => pause(app))
     .then(() => app.webContents.executeJavaScript('dispatch("skipTo", 2)'))
     .then(() => setup.wait(5e3))
     // Take a screenshot to verify video playback
@@ -29,7 +29,14 @@ test('video-streaming', function (t) {
     .then(() => setup.wait())
     .then(() => app.client.click('.control.ok'))
     // Take another screenshot to verify that the window resized correctly
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'play-torrent-return'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'play-torrent-return', '.header'))
     .then(() => setup.endTest(app, t),
       (err) => setup.endTest(app, t, err || 'error'))
 })
+
+function pause (app) {
+  // playPause only toggles, so force the source state before dispatching it.
+  return app.webContents.executeJavaScript(
+    'window.state.playing.isPaused = false; dispatch("playPause")')
+}

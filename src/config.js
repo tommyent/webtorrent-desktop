@@ -1,7 +1,6 @@
 const appConfig = require('application-config')('WebTorrent')
 const path = require('path')
 const { app } = require('electron')
-const arch = require('arch')
 
 const APP_NAME = 'WebTorrent'
 const APP_TEAM = 'WebTorrent, LLC'
@@ -82,7 +81,7 @@ module.exports = {
   IS_PRODUCTION,
   IS_TEST,
 
-  OS_SYSARCH: arch() === 'x64' ? 'x64' : 'ia32',
+  OS_SYSARCH: process.arch,
 
   POSTER_PATH: path.join(getConfigPath(), 'Posters'),
   ROOT_PATH: path.join(__dirname, '..'),
@@ -134,7 +133,7 @@ function getPath (key) {
 }
 
 function isTest () {
-  return process.env.NODE_ENV === 'test'
+  return process.env.NODE_ENV === 'test' || process.argv.includes('--test')
 }
 
 function isPortable () {

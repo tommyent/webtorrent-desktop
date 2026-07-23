@@ -29,7 +29,10 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 const hidden = argv.includes('--hidden') ||
   (process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAsHidden)
 
-if (config.IS_PRODUCTION) {
+if (config.IS_TEST) {
+  // Keep packaged renderer processes on the isolated test profile.
+  process.env.NODE_ENV = 'test'
+} else if (config.IS_PRODUCTION) {
   // When Electron is running in production mode (packaged app), then run React
   // in production mode too.
   process.env.NODE_ENV = 'production'
@@ -41,7 +44,8 @@ if (process.platform === 'win32') {
   argv = argv.filter((arg) => !arg.includes('--squirrel'))
 }
 
-if (!shouldQuit && !config.IS_PORTABLE) {
+// Tests use isolated instances and must not hand arguments to a previous run.
+if (!shouldQuit && !config.IS_PORTABLE && !config.IS_TEST) {
   // Prevent multiple instances of app from running at same time. New instances
   // signal this instance and quit. Note: This feature creates a lock file in
   // %APPDATA%\Roaming\WebTorrent so we do not do it for the Portable App since

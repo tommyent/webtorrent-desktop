@@ -28,7 +28,6 @@ function init () {
       nodeIntegration: true,
       contextIsolation: false,
       enableBlinkFeatures: 'AudioVideoTracks',
-      enableRemoteModule: true,
       backgroundThrottling: false
     },
     width: 150
@@ -54,7 +53,7 @@ function show () {
 
 function send (...args) {
   if (!webtorrent.win) return
-  webtorrent.win.send(...args)
+  webtorrent.win.webContents.send(...args)
 }
 
 function toggleDevTools () {

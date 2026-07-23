@@ -9,11 +9,16 @@ const fs = require('fs')
 const mm = require('music-metadata')
 const networkAddress = require('network-address')
 const path = require('path')
-const WebTorrent = require('webtorrent')
 
 const config = require('../config')
 const { TorrentKeyNotFoundError } = require('./lib/errors')
 const torrentPoster = require('./lib/torrent-poster')
+
+// webtorrent 3 is ESM-only; this file is CommonJS, so it loads via dynamic
+// import before anything else runs. The main process waits for the
+// 'ipcReadyWebTorrent' signal (sent at the end of init), so the async
+// bootstrap is invisible to the rest of the app.
+let WebTorrent = null
 
 /**
  * WebTorrent version.
@@ -43,18 +48,39 @@ const VERSION_PREFIX = '-WD' + VERSION_STR + '-'
  * Generate an ephemeral peer ID each time.
  */
 const PEER_ID = Buffer.from(VERSION_PREFIX + crypto.randomBytes(9).toString('base64'))
+// Integration fixtures use trackers and web seeds, not local peer discovery.
+// Disable shared local sockets so sequential Electron tests cannot collide.
+const CLIENT_OPTIONS = config.IS_TEST
+  ? {
+      peerId: PEER_ID,
+      dht: false,
+      lsd: false,
+      utp: false,
+      utPex: false,
+      natUpnp: false,
+      natPmp: false
+    }
+  : { peerId: PEER_ID }
 
 // Connect to the WebTorrent and BitTorrent networks. WebTorrent Desktop is a hybrid
 // client, as explained here: https://webtorrent.io/faq
-let client = window.client = new WebTorrent({ peerId: PEER_ID })
+let client = null
 
-// WebTorrent-to-HTTP streaming sever
+// WebTorrent-to-HTTP streaming server. webtorrent 3 allows exactly one
+// server per client (createServer throws on the second call, even after the
+// first server is destroyed), so we create it lazily and share it for the
+// client's lifetime.
 let server = null
+let serverReady = null // Promise that resolves to the listening port
 
 // Used for diffing, so we only send progress updates when necessary
 let prevProgress = null
 
-init()
+const bootstrap = import('webtorrent').then(mod => {
+  WebTorrent = mod.default
+  client = window.client = new WebTorrent(CLIENT_OPTIONS)
+  init()
+})
 
 function init () {
   listenToClientEvents()
@@ -118,9 +144,15 @@ function startTorrenting (torrentKey, torrentID, path, fileModtimes, selections)
   torrent.once('ready', () => selectFiles(torrent, selections))
 }
 
+// webtorrent 3 made client.get() async; our callers always pass a plain
+// infohash, so a sync lookup over client.torrents is equivalent.
+function getTorrentByInfoHash (infoHash) {
+  return client.torrents.find(t => t.infoHash === infoHash) || null
+}
+
 function stopTorrenting (infoHash) {
   console.log('--- STOP TORRENTING: ', infoHash)
-  const torrent = client.get(infoHash)
+  const torrent = getTorrentByInfoHash(infoHash)
   if (torrent) torrent.destroy()
 }
 
@@ -223,17 +255,20 @@ function saveTorrentFile (torrentKey) {
 // Auto chooses either a frame from a video file, an image, etc
 function generateTorrentPoster (torrentKey) {
   const torrent = getTorrent(torrentKey)
-  torrentPoster(torrent, (err, buf, extension) => {
-    if (err) return console.log('error generating poster: %o', err)
-    // save it for next time
-    fs.mkdir(config.POSTER_PATH, { recursive: true }, err => {
-      if (err) return console.log('error creating poster dir: %o', err)
-      const posterFileName = torrent.infoHash + extension
-      const posterFilePath = path.join(config.POSTER_PATH, posterFileName)
-      fs.writeFile(posterFilePath, buf, err => {
-        if (err) return console.log('error saving poster: %o', err)
-        // show the poster
-        ipcRenderer.send('wt-poster', torrentKey, posterFileName)
+  // Video posters stream a frame over the shared server, so it must be up
+  ensureServer().then(port => {
+    torrentPoster(torrent, 'http://localhost:' + port, (err, buf, extension) => {
+      if (err) return console.log('error generating poster: %o', err)
+      // save it for next time
+      fs.mkdir(config.POSTER_PATH, { recursive: true }, err => {
+        if (err) return console.log('error creating poster dir: %o', err)
+        const posterFileName = torrent.infoHash + extension
+        const posterFilePath = path.join(config.POSTER_PATH, posterFileName)
+        fs.writeFile(posterFilePath, buf, err => {
+          if (err) return console.log('error saving poster: %o', err)
+          // show the poster
+          ipcRenderer.send('wt-poster', torrentKey, posterFileName)
+        })
       })
     })
   })
@@ -293,24 +328,36 @@ function getTorrentProgress () {
 }
 
 function startServer (infoHash) {
-  const torrent = client.get(infoHash)
+  const torrent = getTorrentByInfoHash(infoHash)
   if (torrent.ready) startServerFromReadyTorrent(torrent)
   else torrent.once('ready', () => startServerFromReadyTorrent(torrent))
 }
 
-function startServerFromReadyTorrent (torrent) {
-  if (server) return
+function ensureServer () {
+  if (!serverReady) {
+    // force the Node server: this renderer has a window object, so webtorrent
+    // would otherwise pick the browser ServiceWorker server
+    server = client.createServer(undefined, 'node')
+    serverReady = new Promise(resolve =>
+      server.listen(0, () => resolve(server.address().port)))
+  }
+  return serverReady
+}
 
-  // start the streaming torrent-to-http server
-  server = torrent.createServer()
-  server.listen(0, () => {
-    const port = server.address().port
-    const urlSuffix = ':' + port
+function startServerFromReadyTorrent (torrent) {
+  // The server is shared; each playback session just gets this torrent's URLs.
+  // Files are routed by infohash and file path (v1 used file index).
+  ensureServer().then(port => {
+    const urlSuffix = ':' + port + '/webtorrent/' + torrent.infoHash
     const info = {
       torrentKey: torrent.key,
       localURL: 'http://localhost' + urlSuffix,
       networkURL: 'http://' + networkAddress() + urlSuffix,
-      networkAddress: networkAddress()
+      networkAddress: networkAddress(),
+      // URL path segment for each file, in file-index order, so the renderer
+      // can keep addressing files by index
+      filePaths: torrent.files.map(f =>
+        f.path.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/'))
     }
 
     ipcRenderer.send('wt-server-running', info)
@@ -319,15 +366,14 @@ function startServerFromReadyTorrent (torrent) {
 }
 
 function stopServer () {
-  if (!server) return
-  server.destroy()
-  server = null
+  // The shared server stays up for the client's lifetime (it only serves
+  // localhost); playback state is cleared by the main process.
 }
 
 console.log('Initializing...')
 
 function getAudioMetadata (infoHash, index) {
-  const torrent = client.get(infoHash)
+  const torrent = getTorrentByInfoHash(infoHash)
   const file = torrent.files[index]
 
   // Set initial matadata to display the filename first.
@@ -348,8 +394,10 @@ function getAudioMetadata (infoHash, index) {
   const onMetadata = file.done
     // If completed; use direct file access
     ? mm.parseFile(path.join(torrent.path, file.path), options)
-    // otherwise stream
-    : mm.parseStream(file.createReadStream(), file.name, options)
+    // otherwise stream. webtorrent 3 exposes files as web streams, which
+    // music-metadata handles via parseWebStream (its Node-stream reader
+    // chokes on webtorrent's streamx read(n) behavior).
+    : mm.parseWebStream(file.stream(), { path: file.name, size: file.length }, options)
 
   onMetadata
     .then(
@@ -370,7 +418,7 @@ function selectFiles (torrentOrInfoHash, selections) {
   // Get the torrent object
   let torrent
   if (typeof torrentOrInfoHash === 'string') {
-    torrent = client.get(torrentOrInfoHash)
+    torrent = getTorrentByInfoHash(torrentOrInfoHash)
   } else {
     torrent = torrentOrInfoHash
   }
@@ -422,12 +470,19 @@ function onError (err) {
 // TODO: remove this once the following bugs are fixed:
 // https://bugs.chromium.org/p/chromium/issues/detail?id=490143
 // https://github.com/electron/electron/issues/7212
-window.testOfflineMode = () => {
+window.testOfflineMode = async () => {
   console.log('Test, going OFFLINE')
+  // The test harness calls this directly, so it can arrive before the async
+  // webtorrent import has finished; executeJavaScript awaits the promise.
+  await bootstrap
+  // Destroy the online client (and its server) so the replacement client
+  // doesn't leak sockets or fight over the shared-server slot.
+  await new Promise(resolve => client.destroy(resolve))
+  server = null
+  serverReady = null
   client = window.client = new WebTorrent({
-    peerId: PEER_ID,
+    ...CLIENT_OPTIONS,
     tracker: false,
-    dht: false,
     webSeeds: false
   })
   listenToClientEvents()

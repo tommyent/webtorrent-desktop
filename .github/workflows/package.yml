@@ -5,19 +5,14 @@ jobs:
   package_linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-node@v3
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '16'
-    - uses: actions/cache@v3
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
-    - run: npm install
+        node-version: '22'
+        cache: npm
+    - run: npm ci
     - run: npm run package -- linux
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v6
       with:
         name: linux
         path: |
@@ -25,21 +20,16 @@ jobs:
           dist/*.rpm
           dist/*.zip
   package_macos:
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-node@v3
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '16'
-    - uses: actions/cache@v3
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
-    - run: npm install
-    - run: npm run package -- darwin
-    - uses: actions/upload-artifact@v3
+        node-version: '22'
+        cache: npm
+    - run: npm ci
+    - run: npm run package -- darwin --arch=universal
+    - uses: actions/upload-artifact@v6
       with:
         name: macos
         path: |
@@ -48,19 +38,14 @@ jobs:
   package_windows:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-node@v3
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '16'
-    - uses: actions/cache@v3
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
-    - run: npm install
+        node-version: '22'
+        cache: npm
+    - run: npm ci
     - run: npm run package -- win32
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v6
       with:
         name: windows
         path: |

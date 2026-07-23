@@ -28,7 +28,6 @@ function init () {
       nodeIntegration: true,
       contextIsolation: false,
       enableBlinkFeatures: 'AudioVideoTracks',
-      enableRemoteModule: true,
       backgroundThrottling: false
     },
     width: 300

@@ -55,8 +55,10 @@ Download the latest version of WebTorrent Desktop from
 ```
 $ git clone https://github.com/webtorrent/webtorrent-desktop.git
 $ cd webtorrent-desktop
-$ npm install
+$ npm ci
 ```
+
+Development requires Node.js 22.12 or newer.
 
 ### Run the app
 
@@ -84,7 +86,7 @@ $ npm test
 $ npm run test-integration
 ```
 
-The integration tests use Spectron and Tape. They click through the app, taking screenshots and
+The integration tests use Playwright and Tape. They click through the app, taking screenshots and
 comparing each one to a reference. Why screenshots?
 
 * Ad-hoc checking makes the tests a lot more work to write
@@ -118,11 +120,14 @@ To build for one platform:
 $ npm run package -- [platform] [options]
 ```
 
-Where `[platform]` is `darwin`, `linux`, `win32`, or `all` (default).
+Where `[platform]` is `darwin`, `linux`, `win32`, or `all`. When omitted, the current platform is
+built.
 
 The following optional arguments are available:
 
 - `--sign` - Sign the application (Mac, Windows)
+- `--arch=[architecture]` - Override the target architecture. macOS supports `arm64`, `x64`, and
+  `universal` (the default); Linux supports `arm64`, `armv7l`, and `x64`.
 - `--package=[type]` - Package single output type.
    - `deb` - Debian package
    - `rpm` - RedHat package
@@ -155,6 +160,13 @@ $ brew install wine mono
 #### Mac build notes
 
 The Mac app can only be packaged from **macOS**.
+
+macOS packages are universal by default, so the resulting app runs natively on Apple Silicon and
+Intel Macs. For a faster local Apple Silicon-only build, run:
+
+```
+$ npm run package -- darwin --arch=arm64 --package=zip
+```
 
 #### Linux build notes
 

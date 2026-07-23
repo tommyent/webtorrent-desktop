@@ -13,7 +13,8 @@ test('torrent-list: show download path missing', function (t) {
   setup.waitForLoad(app, t)
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'Download path missing'))
     .then((err) => t.notOk(err))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-download-path-missing'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-download-path-missing', '.header'))
     .then(() => app.client.click('a'))
     .then(() => setup.wait())
     .then(() => app.browserWindow.getTitle())
@@ -29,26 +30,35 @@ test('torrent-list: start, stop, and delete torrents', function (t) {
   const app = setup.createApp()
   setup.waitForLoad(app, t)
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'Big Buck Bunny'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list', '.header'))
     // Click download on the first torrent, start downloading
-    .then(() => app.client.click('.download input'))
+    .then(() => app.client.click('#torrent-bbb .download input'))
     .then(() => app.client.waitUntilTextExists('.torrent-list', '276 MB'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-start-download'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-start-download', '#torrent-bbb .name'))
     // Click download on the first torrent again, stop downloading
-    .then(() => app.client.click('.download input'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-download'))
+    .then(() => app.client.click('#torrent-bbb .download input'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-download', '#torrent-bbb .name'))
     // Click delete on the first torrent
-    .then(() => app.client.click('.icon.delete'))
+    .then(() => app.client.moveToObject('#torrent-bbb .name'))
+    .then(() => app.client.click('#torrent-bbb .icon.delete'))
+    .then(() => app.client.waitUntilTextExists('.modal', 'REMOVE'))
     .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-delete-prompt'))
     // Click cancel on the resulting confirmation dialog. Should be same as before.
     .then(() => app.client.click('.control.cancel'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-2'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-2', '#torrent-bbb .name'))
     // Click delete on the first torrent again
-    .then(() => app.client.click('.icon.delete'))
+    .then(() => app.client.moveToObject('#torrent-bbb .name'))
+    .then(() => app.client.click('#torrent-bbb .icon.delete'))
+    .then(() => app.client.waitUntilTextExists('.modal', 'REMOVE'))
     .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-delete-prompt'))
     // This time, click OK to confirm.
     .then(() => app.client.click('.control.ok'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-deleted'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-deleted', '.header'))
     .then(() => setup.endTest(app, t),
       (err) => setup.endTest(app, t, err || 'error'))
 })
@@ -61,14 +71,17 @@ test('torrent-list: expand torrent, unselect file', function (t) {
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'Big Buck Bunny'))
     // Click on the torrent, expand
     .then(() => app.client.click('#torrent-cosmos'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-cosmos-expand'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-cosmos-expand', '#torrent-cosmos .name'))
     // Deselect the first file
     .then(() => app.client.click('#torrent-cosmos .icon.deselect-file'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-cosmos-expand-deselect'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-cosmos-expand-deselect', '#torrent-cosmos .name'))
     // Start the torrent
     .then(() => app.client.click('#torrent-cosmos .download input'))
     .then(() => app.client.waitUntilTextExists('.torrent-list', '0%'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-cosmos-expand-start'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-cosmos-expand-start', '#torrent-cosmos .name'))
     // Make sure that it creates all files EXCEPT the deslected one
     // TODO: Disabled test because it stopped working
     // .then(() => setup.compareDownloadFolder(t, 'CosmosLaundromatFirstCycle', [
@@ -88,10 +101,12 @@ test('torrent-list: expand torrent, unselect file', function (t) {
     // Spectron doesn't have proper support for menu clicks yet...
     .then(() => app.webContents.executeJavaScript(
       'dispatch("confirmDeleteTorrent", "6a02592d2bbc069628cd5ed8a54f88ee06ac0ba5", true)'))
+    .then(() => app.client.waitUntilTextExists('.modal', 'REMOVE'))
     .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-cosmos-delete-data'))
     // Click confirm
     .then(() => app.client.click('.control.ok'))
-    .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-cosmos-deleted'))
+    .then(() => setup.screenshotCreateOrCompare(
+      app, t, 'torrent-list-cosmos-deleted', '.header'))
     // Make sure that all the files are gone
     // TODO: Disabled test because it stopped working
     // .then(() => setup.compareDownloadFolder(t, 'CosmosLaundromatFirstCycle', null))

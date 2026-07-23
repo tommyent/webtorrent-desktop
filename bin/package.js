@@ -5,7 +5,6 @@
  */
 
 const cp = require('child_process')
-const electronPackager = require('electron-packager')
 const fs = require('fs')
 const minimist = require('minimist')
 const os = require('os')
@@ -14,14 +13,14 @@ const rimraf = require('rimraf')
 const series = require('run-series')
 const zip = require('cross-zip')
 
+let electronPackager
+
 const config = require('../src/config')
 const pkg = require('../package.json')
 
 const BUILD_NAME = config.APP_NAME + '-v' + config.APP_VERSION
 const BUILD_PATH = path.join(config.ROOT_PATH, 'build')
 const DIST_PATH = path.join(config.ROOT_PATH, 'dist')
-const NODE_MODULES_PATH = path.join(config.ROOT_PATH, 'node_modules')
-
 const argv = minimist(process.argv.slice(2), {
   boolean: [
     'sign'
@@ -31,24 +30,27 @@ const argv = minimist(process.argv.slice(2), {
     sign: false
   },
   string: [
+    'arch',
     'package'
   ]
 })
 
-function build () {
-  console.log('Installing node_modules...')
-  rimraf.sync(NODE_MODULES_PATH)
-  cp.execSync('npm ci', { stdio: 'inherit' })
+async function build () {
+  electronPackager = (await import('@electron/packager')).packager
+  const platform = argv._[0] || process.platform
+  validateOptions(platform)
 
   console.log('Nuking dist/ and build/...')
   rimraf.sync(DIST_PATH)
   rimraf.sync(BUILD_PATH)
 
   console.log('Build: Transpiling to ES5...')
-  cp.execSync('npm run build', { NODE_ENV: 'production', stdio: 'inherit' })
+  cp.execSync('npm run build', {
+    env: Object.assign({}, process.env, { NODE_ENV: 'production' }),
+    stdio: 'inherit'
+  })
   console.log('Build: Transpiled to ES5.')
 
-  const platform = argv._[0]
   if (platform === 'darwin') {
     buildDarwin(printDone)
   } else if (platform === 'win32') {
@@ -63,6 +65,42 @@ function build () {
         buildLinux(printDone)
       })
     })
+  }
+}
+
+function validateOptions (platform) {
+  const platforms = ['all', 'darwin', 'linux', 'win32']
+  if (!platforms.includes(platform)) {
+    throw new Error(`Unsupported platform "${platform}". Expected one of: ${platforms.join(', ')}`)
+  }
+
+  const packageTypes = ['all', 'deb', 'dmg', 'exe', 'portable', 'rpm', 'zip']
+  if (!packageTypes.includes(argv.package)) {
+    throw new Error(`Unsupported package type "${argv.package}". Expected one of: ${packageTypes.join(', ')}`)
+  }
+
+  const packagesByPlatform = {
+    darwin: ['all', 'dmg', 'zip'],
+    linux: ['all', 'deb', 'rpm', 'zip'],
+    win32: ['all', 'exe', 'portable']
+  }
+  if (platform !== 'all' && !packagesByPlatform[platform].includes(argv.package)) {
+    throw new Error(`Package type "${argv.package}" is not supported for ${platform}. Expected one of: ${packagesByPlatform[platform].join(', ')}`)
+  }
+
+  if ((platform === 'darwin' || platform === 'all') && process.platform !== 'darwin') {
+    throw new Error('macOS packages must be built on macOS')
+  }
+
+  if (argv.arch) {
+    const arches = platform === 'darwin'
+      ? ['arm64', 'universal', 'x64']
+      : platform === 'linux'
+        ? ['arm64', 'armv7l', 'x64']
+        : ['x64']
+    if (!arches.includes(argv.arch)) {
+      throw new Error(`Unsupported ${platform} architecture "${argv.arch}". Expected one of: ${arches.join(', ')}`)
+    }
   }
 }
 
@@ -117,8 +155,8 @@ const darwin = {
   // Build for Mac
   platform: 'darwin',
 
-  // Build x64 binary only.
-  arch: 'x64',
+  // A universal build runs natively on both Apple Silicon and Intel Macs.
+  arch: argv.arch || 'universal',
 
   // The bundle identifier to use in the application's plist (Mac only).
   appBundleId: 'io.webtorrent.webtorrent',
@@ -173,12 +211,12 @@ const linux = {
   platform: 'linux',
 
   // Build x64, armv7l, and arm64 binaries.
-  arch: ['x64', 'armv7l', 'arm64']
+  arch: argv.arch ? [argv.arch] : ['x64', 'armv7l', 'arm64']
 
   // Note: Application icon for Linux is specified via the BrowserWindow `icon` option.
 }
 
-build()
+build().catch(printDone)
 
 function buildDarwin (cb) {
   const plist = require('plist')
@@ -248,7 +286,10 @@ function buildDarwin (cb) {
     fs.writeFileSync(infoPlistPath, plist.build(infoPlist))
 
     // Copy torrent file icon into app bundle
-    cp.execSync(`cp ${config.APP_FILE_ICON + '.icns'} ${resourcesPath}`)
+    fs.copyFileSync(
+      config.APP_FILE_ICON + '.icns',
+      path.join(resourcesPath, path.basename(config.APP_FILE_ICON) + '.icns')
+    )
 
     if (process.platform === 'darwin') {
       if (argv.sign) {
@@ -262,11 +303,12 @@ function buildDarwin (cb) {
       }
     } else {
       printWarning()
+      cb(new Error('macOS packages must be built on macOS'))
     }
 
     function signApp (cb) {
-      const sign = require('electron-osx-sign')
-      const { notarize } = require('electron-notarize')
+      const { sign } = require('@electron/osx-sign')
+      const { notarize } = require('@electron/notarize')
 
       /*
        * Sign the app with Apple Developer ID certificates. We sign the app for 2 reasons:
@@ -288,32 +330,28 @@ function buildDarwin (cb) {
         identity: 'Developer ID Application: WebTorrent, LLC (5MAMC8G3L8)',
         hardenedRuntime: true,
         entitlements: path.join(config.ROOT_PATH, 'bin', 'darwin-entitlements.plist'),
-        'entitlements-inherit': path.join(config.ROOT_PATH, 'bin', 'darwin-entitlements.plist'),
-        'signature-flags': 'library'
+        signatureFlags: 'library'
       }
 
       const notarizeOpts = {
-        appBundleId: darwin.appBundleId,
         appPath,
         appleId: 'feross@feross.org',
-        appleIdPassword: '@keychain:AC_PASSWORD'
+        appleIdPassword: '@keychain:AC_PASSWORD',
+        teamId: '5MAMC8G3L8'
       }
 
       console.log('Mac: Signing app...')
-      sign(signOpts, function (err) {
-        if (err) return cb(err)
-        console.log('Mac: Signed app.')
-
-        console.log('Mac: Notarizing app...')
-        notarize(notarizeOpts).then(
-          function () {
-            console.log('Mac: Notarized app.')
-            cb(null)
-          },
-          function (err) {
-            cb(err)
-          })
-      })
+      sign(signOpts)
+        .then(function () {
+          console.log('Mac: Signed app.')
+          console.log('Mac: Notarizing app...')
+          return notarize(notarizeOpts)
+        })
+        .then(function () {
+          console.log('Mac: Notarized app.')
+          cb(null)
+        })
+        .catch(cb)
     }
 
     function pack (cb) {
@@ -321,6 +359,8 @@ function buildDarwin (cb) {
 
       if (argv.package === 'dmg' || argv.package === 'all') {
         packageDmg(cb)
+      } else {
+        cb(null)
       }
     }
 
@@ -329,7 +369,8 @@ function buildDarwin (cb) {
       console.log('Mac: Creating zip...')
 
       const inPath = path.join(buildPath[0], config.APP_NAME + '.app')
-      const outPath = path.join(DIST_PATH, BUILD_NAME + '-darwin.zip')
+      const archSuffix = darwin.arch === 'universal' ? '' : `-${darwin.arch}`
+      const outPath = path.join(DIST_PATH, `${BUILD_NAME}-darwin${archSuffix}.zip`)
       zip.zipSync(inPath, outPath)
 
       console.log('Mac: Created zip.')
@@ -338,42 +379,29 @@ function buildDarwin (cb) {
     function packageDmg (cb) {
       console.log('Mac: Creating dmg...')
 
-      const appDmg = require('appdmg')
-
-      const targetPath = path.join(DIST_PATH, BUILD_NAME + '.dmg')
+      const archSuffix = darwin.arch === 'universal' ? '' : `-${darwin.arch}`
+      const targetPath = path.join(DIST_PATH, `${BUILD_NAME}${archSuffix}.dmg`)
+      const stagingPath = fs.mkdtempSync(path.join(os.tmpdir(), 'webtorrent-dmg-'))
       rimraf.sync(targetPath)
 
-      // Create a .dmg (Mac disk image) file, for easy user installation.
-      const dmgOpts = {
-        basepath: config.ROOT_PATH,
-        target: targetPath,
-        specification: {
-          title: config.APP_NAME,
-          icon: config.APP_ICON + '.icns',
-          background: path.join(config.STATIC_PATH, 'appdmg.png'),
-          'icon-size': 128,
-          contents: [
-            { x: 122, y: 240, type: 'file', path: appPath },
-            { x: 380, y: 240, type: 'link', path: '/Applications' },
-            // Hide hidden icons out of view, for users who have hidden files shown.
-            // https://github.com/LinusU/node-appdmg/issues/45#issuecomment-153924954
-            { x: 50, y: 500, type: 'position', path: '.background' },
-            { x: 100, y: 500, type: 'position', path: '.DS_Store' },
-            { x: 150, y: 500, type: 'position', path: '.Trashes' },
-            { x: 200, y: 500, type: 'position', path: '.VolumeIcon.icns' }
-          ]
-        }
-      }
-
-      const dmg = appDmg(dmgOpts)
-      dmg.once('error', cb)
-      dmg.on('progress', function (info) {
-        if (info.type === 'step-begin') console.log(info.title + '...')
-      })
-      dmg.once('finish', function (info) {
+      try {
+        fs.cpSync(appPath, path.join(stagingPath, path.basename(appPath)), { recursive: true })
+        fs.symlinkSync('/Applications', path.join(stagingPath, 'Applications'))
+        cp.execFileSync('hdiutil', [
+          'create',
+          '-volname', config.APP_NAME,
+          '-srcfolder', stagingPath,
+          '-ov',
+          '-format', 'UDZO',
+          targetPath
+        ], { stdio: 'inherit' })
         console.log('Mac: Created dmg.')
         cb(null)
-      })
+      } catch (err) {
+        cb(err)
+      } finally {
+        rimraf.sync(stagingPath)
+      }
     }
   }).catch(function (err) {
     cb(err)
@@ -615,7 +643,10 @@ function buildLinux (cb) {
 }
 
 function printDone (err) {
-  if (err) console.error(err.message || err)
+  if (err) {
+    console.error(err.message || err)
+    process.exitCode = 1
+  }
 }
 
 /*
