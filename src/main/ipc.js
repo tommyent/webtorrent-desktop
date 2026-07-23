@@ -5,6 +5,8 @@ module.exports = {
 
 const electron = require('electron')
 const { app, ipcMain } = electron
+const fs = require('fs/promises')
+const path = require('path')
 
 const config = require('../config')
 const REQUEST_TIMEOUT = 30e3
@@ -70,6 +72,21 @@ function init () {
   ipcMain.on('openFiles', () => {
     const dialog = require('./dialog')
     dialog.openFiles()
+  })
+  ipcMain.handle('readSubtitleFiles', async (e, filePaths) => {
+    if (!Array.isArray(filePaths)) throw new TypeError('Invalid subtitle file paths')
+    return Promise.all(filePaths.map(async filePath => {
+      const extension = typeof filePath === 'string'
+        ? path.extname(filePath).toLowerCase()
+        : ''
+      if (extension !== '.srt' && extension !== '.vtt') {
+        throw new TypeError('Invalid subtitle file path')
+      }
+      return {
+        filePath,
+        contents: await fs.readFile(filePath, 'utf8')
+      }
+    }))
   })
 
   /**

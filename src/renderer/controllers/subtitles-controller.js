@@ -1,5 +1,4 @@
 const { ipcRenderer } = require('electron')
-const fs = require('fs')
 const path = require('path')
 const parallel = require('run-parallel')
 
@@ -34,31 +33,38 @@ module.exports = class SubtitlesController {
     if (this.state.playing.type !== 'video') return
     if (files.length === 0) return
     const subtitles = this.state.playing.subtitles
+    const filePaths = files.map(file => file.path || file)
 
-    // Read the files concurrently, then add all resulting subtitle tracks
-    const tasks = files.map((file) => (cb) => loadSubtitle(file, cb))
-    parallel(tasks, (err, tracks) => {
-      if (err) return dispatch('error', err)
+    ipcRenderer.invoke('readSubtitleFiles', filePaths)
+      .then(subtitleFiles => {
+        // Parse the files concurrently, then add all resulting subtitle tracks
+        const tasks = subtitleFiles.map(
+          ({ filePath, contents }) => cb => loadSubtitle(filePath, contents, cb)
+        )
+        parallel(tasks, (err, tracks) => {
+          if (err) return dispatch('error', err)
 
-      // No dupes allowed
-      tracks.forEach((track, i) => {
-        let trackIndex = subtitles.tracks.findIndex((t) =>
-          track.filePath === t.filePath)
+          // No dupes allowed
+          tracks.forEach((track, i) => {
+            let trackIndex = subtitles.tracks.findIndex((t) =>
+              track.filePath === t.filePath)
 
-        // Add the track
-        if (trackIndex === -1) {
-          trackIndex = subtitles.tracks.push(track) - 1
-        }
+            // Add the track
+            if (trackIndex === -1) {
+              trackIndex = subtitles.tracks.push(track) - 1
+            }
 
-        // If we're auto-selecting a track, try to find one in the user's language
-        if (autoSelect && (i === 0 || isSystemLanguage(track.language))) {
-          subtitles.selectedIndex = trackIndex
-        }
+            // If we're auto-selecting a track, try to find one in the user's language
+            if (autoSelect && (i === 0 || isSystemLanguage(track.language))) {
+              subtitles.selectedIndex = trackIndex
+            }
+          })
+
+          // Finally, make sure no two tracks have the same label
+          relabelSubtitles(subtitles)
+        })
       })
-
-      // Finally, make sure no two tracks have the same label
-      relabelSubtitles(subtitles)
-    })
+      .catch(() => dispatch('error', 'Can\'t parse subtitles file.'))
   }
 
   checkForSubtitles () {
@@ -82,20 +88,18 @@ module.exports = class SubtitlesController {
   }
 }
 
-function loadSubtitle (file, cb) {
+function loadSubtitle (filePath, contents, cb) {
   // Lazy load to keep startup fast
   const concat = require('simple-concat')
+  const { Readable } = require('stream')
   const LanguageDetect = require('languagedetect')
   const srtToVtt = require('srt-to-vtt')
 
-  // Read the .SRT or .VTT file, parse it, add subtitle track
-  const filePath = file.path || file
-
-  const vttStream = fs.createReadStream(filePath).pipe(srtToVtt())
+  // Parse the .SRT or .VTT contents and add a subtitle track
+  const vttStream = Readable.from(contents).pipe(srtToVtt())
 
   concat(vttStream, (err, buf) => {
-    if (err) return dispatch('error', 'Can\'t parse subtitles file.')
-
+    if (err) return cb(new Error('Can\'t parse subtitles file.'))
     // Detect what language the subtitles are in
     const vttContents = buf.toString().replace(/(.*-->.*)/g, '')
     let langDetected = (new LanguageDetect()).detect(vttContents, 2)
