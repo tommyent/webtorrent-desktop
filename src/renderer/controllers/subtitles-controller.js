@@ -34,10 +34,11 @@ module.exports = class SubtitlesController {
     const subtitles = this.state.playing.subtitles
     const filePaths = files.map(file => file.path || file)
 
-    ipcRenderer.invoke('readSubtitleFiles', filePaths)
-      .then(subtitleFiles => Promise.all(subtitleFiles.map(
-        ({ filePath, contents }) => loadSubtitle(filePath, contents)
-      )))
+    ipcRenderer.invoke('loadSubtitles', filePaths)
+      .then(tracks => {
+        tracks.forEach(track => { track.label = track.language })
+        return tracks
+      })
       .then(tracks => {
         // No dupes allowed
         tracks.forEach((track, i) => {
@@ -79,31 +80,6 @@ module.exports = class SubtitlesController {
     const name = typeof file === 'string' ? file : file.name
     const ext = path.extname(name).toLowerCase()
     return ext === '.srt' || ext === '.vtt'
-  }
-}
-
-async function loadSubtitle (filePath, contents) {
-  // Lazy load to keep startup fast
-  const { buffer } = require('node:stream/consumers')
-  const { Readable } = require('stream')
-  const LanguageDetect = require('languagedetect')
-  const srtToVtt = require('srt-to-vtt')
-
-  // Parse the .SRT or .VTT contents and add a subtitle track.
-  // A parse failure rejects; the caller reports it to the user.
-  const buf = await buffer(Readable.from(contents).pipe(srtToVtt()))
-
-  // Detect what language the subtitles are in
-  const vttContents = buf.toString().replace(/(.*-->.*)/g, '')
-  let langDetected = (new LanguageDetect()).detect(vttContents, 2)
-  langDetected = langDetected.length ? langDetected[0][0] : 'subtitle'
-  langDetected = langDetected.slice(0, 1).toUpperCase() + langDetected.slice(1)
-
-  return {
-    buffer: 'data:text/vtt;base64,' + buf.toString('base64'),
-    language: langDetected,
-    label: langDetected,
-    filePath
   }
 }
 

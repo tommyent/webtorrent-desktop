@@ -49,6 +49,21 @@ function init () {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       throw new TypeError('Invalid telemetry payload')
     }
+    // Enrich with system/screen facts here so the renderer needs no Node APIs
+    const os = require('os')
+    data.screens = electron.screen.getAllDisplays().map(screen => ({
+      width: screen.size.width,
+      height: screen.size.height,
+      scaleFactor: screen.scaleFactor
+    }))
+    data.system = {
+      osPlatform: process.platform,
+      osRelease: os.type() + ' ' + os.release(),
+      architecture: os.arch(),
+      systemArchitecture: process.arch,
+      totalMemoryMB: roundPow2(os.totalmem() / (1 << 20)),
+      numCores: os.cpus().length
+    }
     const res = await electron.net.fetch(config.TELEMETRY_URL, {
       method: 'POST',
       headers: {
@@ -73,8 +88,14 @@ function init () {
     const dialog = require('./dialog')
     dialog.openFiles()
   })
-  ipcMain.handle('readSubtitleFiles', async (e, filePaths) => {
+  // Reads .srt/.vtt files, converts to VTT, and detects the language, so the
+  // renderer needs no fs or subtitle-conversion modules.
+  ipcMain.handle('loadSubtitles', async (e, filePaths) => {
     if (!Array.isArray(filePaths)) throw new TypeError('Invalid subtitle file paths')
+    const { Readable } = require('stream')
+    const { buffer } = require('stream/consumers')
+    const srtToVtt = require('srt-to-vtt')
+    const LanguageDetect = require('languagedetect')
     return Promise.all(filePaths.map(async filePath => {
       const extension = typeof filePath === 'string'
         ? path.extname(filePath).toLowerCase()
@@ -82,9 +103,19 @@ function init () {
       if (extension !== '.srt' && extension !== '.vtt') {
         throw new TypeError('Invalid subtitle file path')
       }
+      const contents = await fs.readFile(filePath, 'utf8')
+      const buf = await buffer(Readable.from(contents).pipe(srtToVtt()))
+
+      // Detect what language the subtitles are in
+      const vttContents = buf.toString().replace(/(.*-->.*)/g, '')
+      let language = new LanguageDetect().detect(vttContents, 2)
+      language = language.length ? language[0][0] : 'subtitle'
+      language = language.slice(0, 1).toUpperCase() + language.slice(1)
+
       return {
         filePath,
-        contents: await fs.readFile(filePath, 'utf8')
+        language,
+        buffer: 'data:text/vtt;base64,' + buf.toString('base64')
       }
     }))
   })
@@ -243,14 +274,6 @@ function init () {
     }
   })
 
-  ipcMain.on('getScreenInfo', (e) => {
-    e.returnValue = electron.screen.getAllDisplays().map(screen => ({
-      width: screen.size.width,
-      height: screen.size.height,
-      scaleFactor: screen.scaleFactor
-    }))
-  })
-
   ipcMain.on('showOpenDialogSync', (e, opts) => {
     e.returnValue = electron.dialog.showOpenDialogSync(main.win, Object(opts))
   })
@@ -366,4 +389,10 @@ function init () {
     // Emit all other events normally
     oldEmit.call(ipcMain, name, e, ...args)
   }
+}
+
+// Rounds to the nearest power of 2, for telemetry privacy bucketing.
+function roundPow2 (n) {
+  if (n <= 0) return 0
+  return 2 ** Math.round(Math.log(n) / Math.log(2))
 }

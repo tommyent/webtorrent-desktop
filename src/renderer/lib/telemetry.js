@@ -31,8 +31,7 @@ function send (state) {
   telemetry.version = config.APP_VERSION
   telemetry.timestamp = now.toISOString()
   telemetry.localTime = now.toTimeString()
-  telemetry.screens = getScreenInfo()
-  telemetry.system = getSystemInfo()
+  // screens and system info are added by the main process in 'sendTelemetry'
   telemetry.torrentStats = getTorrentStats(state)
   telemetry.approxNumTorrents = telemetry.torrentStats.approxCount
 
@@ -62,24 +61,6 @@ function reset () {
     error: 0,
     external: 0,
     abandoned: 0
-  }
-}
-
-// Track screen resolution
-function getScreenInfo () {
-  return electron.ipcRenderer.sendSync('getScreenInfo')
-}
-
-// Track basic system info like OS version and amount of RAM
-function getSystemInfo () {
-  const os = require('os')
-  return {
-    osPlatform: process.platform,
-    osRelease: os.type() + ' ' + os.release(),
-    architecture: os.arch(),
-    systemArchitecture: config.OS_SYSARCH,
-    totalMemoryMB: roundPow2(os.totalmem() / (1 << 20)),
-    numCores: os.cpus().length
   }
 }
 
