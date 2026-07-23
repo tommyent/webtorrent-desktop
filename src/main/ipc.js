@@ -230,17 +230,17 @@ function init () {
    * Shell
    */
 
-  ipcMain.on('openPath', (e, ...args) => {
-    const shell = require('./shell')
-    shell.openPath(...args)
+  ipcMain.on('openPath', (e, filePath) => {
+    require('./data-path').assertDataPath(filePath)
+    require('./shell').openPath(filePath)
   })
-  ipcMain.on('showItemInFolder', (e, ...args) => {
-    const shell = require('./shell')
-    shell.showItemInFolder(...args)
+  ipcMain.on('showItemInFolder', (e, filePath) => {
+    require('./data-path').assertDataPath(filePath)
+    require('./shell').showItemInFolder(filePath)
   })
-  ipcMain.on('moveItemToTrash', (e, ...args) => {
-    const shell = require('./shell')
-    shell.moveItemToTrash(...args)
+  ipcMain.on('moveItemToTrash', (e, filePath) => {
+    require('./data-path').assertDataPath(filePath)
+    require('./shell').moveItemToTrash(filePath)
   })
 
   /**
@@ -319,15 +319,22 @@ function init () {
     })
   })
 
-  ipcMain.on('openExternalPlayer', (e, ...args) => {
+  ipcMain.on('openExternalPlayer', (e, filePath, mediaURL, title) => {
     const externalPlayer = require('./external-player')
     const shortcuts = require('./shortcuts')
     const thumbar = require('./thumbar')
 
+    // Never spawn a renderer-named binary: the process image comes only from
+    // the user's configured player path in the authoritative saved state (or
+    // null, which falls back to VLC auto-detect). The renderer still supplies
+    // the media URL and title, which are args to that player, not an executable.
+    const saved = modules.stateStore && modules.stateStore.getSaved()
+    const playerPath = (saved && saved.prefs && saved.prefs.externalPlayerPath) || null
+
     menu.togglePlaybackControls(false)
     shortcuts.disable()
     thumbar.disable()
-    externalPlayer.spawn(...args)
+    externalPlayer.spawn(playerPath, mediaURL, title)
   })
 
   ipcMain.on('quitExternalPlayer', () => {

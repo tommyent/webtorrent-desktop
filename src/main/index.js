@@ -93,6 +93,10 @@ function init () {
       }
     })
 
+    // Let the path guard confine renderer-supplied shell paths to the download
+    // directories of torrents in the authoritative saved state.
+    require('./data-path').setTorrentsAccessor(() => state.saved.torrents || [])
+
     menu.init()
     windows.main.init(state, { hidden })
     windows.webtorrent.init()

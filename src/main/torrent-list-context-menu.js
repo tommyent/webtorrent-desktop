@@ -25,7 +25,11 @@ function open (info) {
     template.push(
       {
         label: process.platform === 'darwin' ? 'Show in Finder' : 'Show in Folder',
-        click: () => require('./shell').showItemInFolder(info.fileOrFolder)
+        click: () => {
+          // Confine to a known torrent download dir, like the shell IPC handlers
+          require('./data-path').assertDataPath(info.fileOrFolder)
+          require('./shell').showItemInFolder(info.fileOrFolder)
+        }
       },
       { type: 'separator' }
     )

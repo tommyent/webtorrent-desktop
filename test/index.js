@@ -69,6 +69,7 @@ test('app runs', function (t) {
       (err) => setup.endTest(app, t, err || 'error'))
 })
 
+require('./test-data-path')
 require('./test-torrent-list')
 require('./test-add-torrent')
 require('./test-video')
