@@ -1,7 +1,7 @@
 const path = require('path')
 
 const colors = require('material-ui/styles/colors')
-const remote = require('@electron/remote')
+const { ipcRenderer } = require('electron')
 const React = require('react')
 const PropTypes = require('prop-types')
 
@@ -34,7 +34,7 @@ class PathSelector extends React.Component {
       properties: ['openFile', 'openDirectory']
     }, this.props.dialog)
 
-    const filenames = remote.dialog.showOpenDialogSync(remote.getCurrentWindow(), opts)
+    const filenames = ipcRenderer.sendSync('showOpenDialogSync', opts)
     if (!Array.isArray(filenames)) return
     this.props.onChange && this.props.onChange(filenames[0])
   }

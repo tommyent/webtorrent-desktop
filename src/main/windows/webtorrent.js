@@ -32,7 +32,6 @@ function init () {
     },
     width: 150
   })
-  require('@electron/remote/main').enable(win.webContents)
 
   win.loadURL(config.WINDOW_WEBTORRENT)
 

@@ -125,7 +125,7 @@ function getPath (key) {
     return ''
   } else if (process.type === 'renderer') {
     // Electron renderer process
-    return require('@electron/remote').app.getPath(key)
+    return require('electron').ipcRenderer.sendSync('getPath', key)
   } else {
     // Electron main process
     return app.getPath(key)

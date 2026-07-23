@@ -3,7 +3,8 @@ module.exports = {
   setModule
 }
 
-const { app, ipcMain } = require('electron')
+const electron = require('electron')
+const { app, ipcMain } = electron
 
 const log = require('./log')
 const menu = require('./menu')
@@ -185,6 +186,87 @@ function init () {
   ipcMain.on('show', () => main.show())
   ipcMain.on('toggleFullScreen', (e, ...args) => main.toggleFullScreen(...args))
   ipcMain.on('setAllowNav', (e, ...args) => menu.setAllowNav(...args))
+
+  /**
+   * Synchronous helpers for the renderer. These replaced @electron/remote:
+   * every call site was a sync remote.* lookup, so the handlers are sync too.
+   */
+
+  ipcMain.on('getPath', (e, key) => {
+    e.returnValue = typeof key === 'string' ? app.getPath(key) : ''
+  })
+
+  ipcMain.on('getWindowInfo', (e) => {
+    const win = main.win
+    e.returnValue = {
+      isVisible: !!win && win.isVisible(),
+      isMaximized: !!win && win.isMaximized()
+    }
+  })
+
+  ipcMain.on('getScreenInfo', (e) => {
+    e.returnValue = electron.screen.getAllDisplays().map(screen => ({
+      width: screen.size.width,
+      height: screen.size.height,
+      scaleFactor: screen.scaleFactor
+    }))
+  })
+
+  ipcMain.on('showOpenDialogSync', (e, opts) => {
+    e.returnValue = electron.dialog.showOpenDialogSync(main.win, Object(opts))
+  })
+
+  ipcMain.on('showSaveDialogSync', (e, opts) => {
+    e.returnValue = electron.dialog.showSaveDialogSync(main.win, Object(opts))
+  })
+
+  // The torrent list context menu lives here because renderers can no longer
+  // build native menus. Clicks route back through the existing dispatch()
+  // channel, same as the application menu.
+  ipcMain.on('openTorrentListContextMenu', (e, info) => {
+    if (!info || typeof info.infoHash !== 'string') return
+    const template = [
+      {
+        label: 'Remove From List',
+        click: () => main.dispatch('confirmDeleteTorrent', info.infoHash, false)
+      },
+      {
+        label: 'Remove Data File',
+        click: () => main.dispatch('confirmDeleteTorrent', info.infoHash, true)
+      },
+      { type: 'separator' }
+    ]
+    if (info.fileOrFolder) {
+      template.push(
+        {
+          label: process.platform === 'darwin' ? 'Show in Finder' : 'Show in Folder',
+          click: () => require('./shell').showItemInFolder(info.fileOrFolder)
+        },
+        { type: 'separator' }
+      )
+    }
+    template.push(
+      {
+        label: 'Copy Magnet Link to Clipboard',
+        click: () => electron.clipboard.writeText(info.magnetURI)
+      },
+      {
+        label: 'Copy Instant.io Link to Clipboard',
+        click: () => electron.clipboard.writeText(`https://instant.io/#${info.infoHash}`)
+      },
+      {
+        label: 'Save Torrent File As...',
+        click: () => main.dispatch('saveTorrentFileAs', info.torrentKey),
+        enabled: info.torrentFileName != null
+      },
+      { type: 'separator' },
+      {
+        label: `${info.sortedByName ? '✓ ' : ''}Sort by Name`,
+        click: () => main.dispatch('updatePreferences', 'sortByName', !info.sortedByName)
+      }
+    )
+    electron.Menu.buildFromTemplate(template).popup({ window: main.win })
+  })
 
   /**
    * External Media Player

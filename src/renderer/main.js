@@ -24,7 +24,6 @@ const createGetter = require('fn-getter')
 const debounce = require('debounce')
 const dragDrop = require('drag-drop')
 const electron = require('electron')
-const remote = require('@electron/remote')
 const fs = require('fs')
 const React = require('react')
 const ReactDOM = require('react-dom')
@@ -173,7 +172,7 @@ function onState (err, _state) {
   window.addEventListener('focus', onFocus)
   window.addEventListener('blur', onBlur)
 
-  if (remote.getCurrentWindow().isVisible()) {
+  if (electron.ipcRenderer.sendSync('getWindowInfo').isVisible) {
     sound.play('STARTUP')
   }
 
@@ -441,7 +440,7 @@ function resumeTorrents () {
 // Set window dimensions to match video dimensions or fill the screen
 function setDimensions (dimensions) {
   // Don't modify the window size if it's already maximized
-  if (remote.getCurrentWindow().isMaximized()) {
+  if (electron.ipcRenderer.sendSync('getWindowInfo').isMaximized) {
     state.window.bounds = null
     return
   }
@@ -453,7 +452,7 @@ function setDimensions (dimensions) {
     width: window.outerWidth,
     height: window.outerHeight
   }
-  state.window.wasMaximized = remote.getCurrentWindow().isMaximized()
+  state.window.wasMaximized = electron.ipcRenderer.sendSync('getWindowInfo').isMaximized
 
   // Limit window size to screen size
   const screenWidth = window.screen.width

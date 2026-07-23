@@ -7,7 +7,7 @@ module.exports = {
   logPlayAttempt
 }
 
-const remote = require('@electron/remote')
+const electron = require('electron')
 
 const config = require('../../config')
 
@@ -74,11 +74,7 @@ function reset () {
 
 // Track screen resolution
 function getScreenInfo () {
-  return remote.screen.getAllDisplays().map((screen) => ({
-    width: screen.size.width,
-    height: screen.size.height,
-    scaleFactor: screen.scaleFactor
-  }))
+  return electron.ipcRenderer.sendSync('getScreenInfo')
 }
 
 // Track basic system info like OS version and amount of RAM

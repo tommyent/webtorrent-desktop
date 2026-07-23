@@ -1,7 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const { ipcRenderer, clipboard } = require('electron')
-const remote = require('@electron/remote')
+const { ipcRenderer } = require('electron')
 
 const { dispatch } = require('../lib/dispatcher')
 const { TorrentKeyNotFoundError } = require('../lib/errors')
@@ -255,59 +254,18 @@ module.exports = class TorrentListController {
 
   openTorrentContextMenu (infoHash) {
     const torrentSummary = TorrentSummary.getByKey(this.state, infoHash)
-    const menu = new remote.Menu()
-
-    menu.append(new remote.MenuItem({
-      label: 'Remove From List',
-      click: () => dispatch('confirmDeleteTorrent', torrentSummary.infoHash, false)
-    }))
-
-    menu.append(new remote.MenuItem({
-      label: 'Remove Data File',
-      click: () => dispatch('confirmDeleteTorrent', torrentSummary.infoHash, true)
-    }))
-
-    menu.append(new remote.MenuItem({
-      type: 'separator'
-    }))
-
-    if (torrentSummary.files) {
-      menu.append(new remote.MenuItem({
-        label: process.platform === 'darwin' ? 'Show in Finder' : 'Show in Folder',
-        click: () => showItemInFolder(torrentSummary)
-      }))
-      menu.append(new remote.MenuItem({
-        type: 'separator'
-      }))
-    }
-
-    menu.append(new remote.MenuItem({
-      label: 'Copy Magnet Link to Clipboard',
-      click: () => clipboard.writeText(torrentSummary.magnetURI)
-    }))
-
-    menu.append(new remote.MenuItem({
-      label: 'Copy Instant.io Link to Clipboard',
-      click: () => clipboard.writeText(`https://instant.io/#${torrentSummary.infoHash}`)
-    }))
-
-    menu.append(new remote.MenuItem({
-      label: 'Save Torrent File As...',
-      click: () => dispatch('saveTorrentFileAs', torrentSummary.torrentKey),
-      enabled: torrentSummary.torrentFileName != null
-    }))
-
-    menu.append(new remote.MenuItem({
-      type: 'separator'
-    }))
-
-    const sortedByName = this.state.saved.prefs.sortByName
-    menu.append(new remote.MenuItem({
-      label: `${sortedByName ? '✓ ' : ''}Sort by Name`,
-      click: () => dispatch('updatePreferences', 'sortByName', !sortedByName)
-    }))
-
-    menu.popup({ window: remote.getCurrentWindow() })
+    // Native menus can only be built in the main process; clicks come back
+    // through the same dispatch() channel the application menu uses.
+    ipcRenderer.send('openTorrentListContextMenu', {
+      infoHash: torrentSummary.infoHash,
+      magnetURI: torrentSummary.magnetURI,
+      torrentKey: torrentSummary.torrentKey,
+      torrentFileName: torrentSummary.torrentFileName,
+      fileOrFolder: torrentSummary.files
+        ? TorrentSummary.getFileOrFolder(torrentSummary)
+        : null,
+      sortedByName: this.state.saved.prefs.sortByName
+    })
   }
 
   // Takes a torrentSummary or torrentKey
@@ -317,7 +275,6 @@ module.exports = class TorrentListController {
     if (!torrentSummary) throw new TorrentKeyNotFoundError(torrentKey)
     const downloadPath = this.state.saved.prefs.downloadPath
     const newFileName = path.parse(torrentSummary.name).name + '.torrent'
-    const win = remote.getCurrentWindow()
     const opts = {
       title: 'Save Torrent File',
       defaultPath: path.join(downloadPath, newFileName),
@@ -328,7 +285,7 @@ module.exports = class TorrentListController {
       buttonLabel: 'Save'
     }
 
-    const savePath = remote.dialog.showSaveDialogSync(win, opts)
+    const savePath = ipcRenderer.sendSync('showSaveDialogSync', opts)
 
     if (!savePath) return // They clicked Cancel
     console.log('Saving torrent ' + torrentKey + ' to ' + savePath)
@@ -400,10 +357,6 @@ function deleteFile (path) {
 function moveItemToTrash (torrentSummary) {
   const filePath = TorrentSummary.getFileOrFolder(torrentSummary)
   if (filePath) ipcRenderer.send('moveItemToTrash', filePath)
-}
-
-function showItemInFolder (torrentSummary) {
-  ipcRenderer.send('showItemInFolder', TorrentSummary.getFileOrFolder(torrentSummary))
 }
 
 function deleteTorrentFile (torrentSummary, deleteData) {

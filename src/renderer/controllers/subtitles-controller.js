@@ -1,4 +1,4 @@
-const remote = require('@electron/remote')
+const { ipcRenderer } = require('electron')
 const fs = require('fs')
 const path = require('path')
 const parallel = require('run-parallel')
@@ -11,7 +11,7 @@ module.exports = class SubtitlesController {
   }
 
   openSubtitles () {
-    const filenames = remote.dialog.showOpenDialogSync({
+    const filenames = ipcRenderer.sendSync('showOpenDialogSync', {
       title: 'Select a subtitles file.',
       filters: [{ name: 'Subtitles', extensions: ['vtt', 'srt'] }],
       properties: ['openFile']
