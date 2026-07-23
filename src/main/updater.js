@@ -2,8 +2,7 @@ module.exports = {
   init
 }
 
-const { autoUpdater } = require('electron')
-const get = require('simple-get')
+const { autoUpdater, net } = require('electron')
 
 const config = require('../config')
 const log = require('./log')
@@ -13,6 +12,7 @@ const AUTO_UPDATE_URL = config.AUTO_UPDATE_URL +
   '?version=' + config.APP_VERSION +
   '&platform=' + process.platform +
   '&sysarch=' + config.OS_SYSARCH
+const REQUEST_TIMEOUT = 30e3
 
 function init () {
   if (process.platform === 'linux') {
@@ -24,25 +24,32 @@ function init () {
 
 // The Electron auto-updater does not support Linux yet, so manually check for
 // updates and show the user a modal notification.
-function initLinux () {
-  get.concat(AUTO_UPDATE_URL, onResponse)
+async function initLinux () {
+  try {
+    const res = await net.fetch(AUTO_UPDATE_URL, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT)
+    })
+    await onResponse(res)
+  } catch (err) {
+    log(`Update error: ${err.message}`)
+  }
 }
 
-function onResponse (err, res, data) {
-  if (err) return log(`Update error: ${err.message}`)
-  if (res.statusCode === 200) {
+async function onResponse (res) {
+  if (res.status === 200) {
     // Update available
+    let data
     try {
-      data = JSON.parse(data)
+      data = JSON.parse(await res.text())
     } catch (err) {
       return log(`Update error: Invalid JSON response: ${err.message}`)
     }
     windows.main.dispatch('updateAvailable', data.version)
-  } else if (res.statusCode === 204) {
+  } else if (res.status === 204) {
     // No update available
   } else {
     // Unexpected status code
-    log(`Update error: Unexpected status code: ${res.statusCode}`)
+    log(`Update error: Unexpected status code: ${res.status}`)
   }
 }
 

@@ -2,13 +2,14 @@ module.exports = {
   init
 }
 
-const { dialog } = require('electron')
+const { dialog, net } = require('electron')
 
 const config = require('../config')
 const log = require('./log')
 
 const ANNOUNCEMENT_URL =
   `${config.ANNOUNCEMENT_URL}?version=${config.APP_VERSION}&platform=${process.platform}`
+const REQUEST_TIMEOUT = 30e3
 
 /**
  * In certain situations, the WebTorrent team may need to show an announcement to
@@ -24,15 +25,22 @@ const ANNOUNCEMENT_URL =
  *     "detail": "Please update to v0.xx as soon as possible..."
  *   }
  */
-function init () {
-  const get = require('simple-get')
-  get.concat(ANNOUNCEMENT_URL, onResponse)
+async function init () {
+  try {
+    const res = await net.fetch(ANNOUNCEMENT_URL, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT)
+    })
+    if (res.status === 204) return log('No announcement available')
+    if (res.status !== 200) {
+      return log(`Failed to retrieve announcement: Unexpected status code: ${res.status}`)
+    }
+    onResponse(await res.text())
+  } catch (err) {
+    log(`Failed to retrieve announcement: ${err.message}`)
+  }
 }
 
-function onResponse (err, res, data) {
-  if (err) return log(`Failed to retrieve announcement: ${err.message}`)
-  if (res.statusCode !== 200) return log('No announcement available')
-
+function onResponse (data) {
   try {
     data = JSON.parse(data.toString())
   } catch (err) {
