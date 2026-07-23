@@ -9,8 +9,17 @@ const fs = require('fs')
 const minimist = require('minimist')
 const os = require('os')
 const path = require('path')
-const series = require('run-series')
 const zip = require('cross-zip')
+
+// Runs callback-style tasks one after another, like run-series did
+function series (tasks, cb) {
+  const next = (err) => {
+    const task = tasks.shift()
+    if (err || !task) return cb(err || null)
+    task(next)
+  }
+  next(null)
+}
 
 let electronPackager
 

@@ -82,34 +82,29 @@ module.exports = class SubtitlesController {
   }
 }
 
-function loadSubtitle (filePath, contents) {
+async function loadSubtitle (filePath, contents) {
   // Lazy load to keep startup fast
-  const concat = require('simple-concat')
+  const { buffer } = require('node:stream/consumers')
   const { Readable } = require('stream')
   const LanguageDetect = require('languagedetect')
   const srtToVtt = require('srt-to-vtt')
 
-  // Parse the .SRT or .VTT contents and add a subtitle track
-  const vttStream = Readable.from(contents).pipe(srtToVtt())
+  // Parse the .SRT or .VTT contents and add a subtitle track.
+  // A parse failure rejects; the caller reports it to the user.
+  const buf = await buffer(Readable.from(contents).pipe(srtToVtt()))
 
-  return new Promise((resolve, reject) => {
-    concat(vttStream, (err, buf) => {
-      if (err) return reject(new Error('Can\'t parse subtitles file.'))
+  // Detect what language the subtitles are in
+  const vttContents = buf.toString().replace(/(.*-->.*)/g, '')
+  let langDetected = (new LanguageDetect()).detect(vttContents, 2)
+  langDetected = langDetected.length ? langDetected[0][0] : 'subtitle'
+  langDetected = langDetected.slice(0, 1).toUpperCase() + langDetected.slice(1)
 
-      // Detect what language the subtitles are in
-      const vttContents = buf.toString().replace(/(.*-->.*)/g, '')
-      let langDetected = (new LanguageDetect()).detect(vttContents, 2)
-      langDetected = langDetected.length ? langDetected[0][0] : 'subtitle'
-      langDetected = langDetected.slice(0, 1).toUpperCase() + langDetected.slice(1)
-
-      resolve({
-        buffer: 'data:text/vtt;base64,' + buf.toString('base64'),
-        language: langDetected,
-        label: langDetected,
-        filePath
-      })
-    })
-  })
+  return {
+    buffer: 'data:text/vtt;base64,' + buf.toString('base64'),
+    language: langDetected,
+    label: langDetected,
+    filePath
+  }
 }
 
 // Checks whether a language name like 'English' or 'German' matches the system

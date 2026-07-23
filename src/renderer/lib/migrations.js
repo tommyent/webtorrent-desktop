@@ -201,7 +201,13 @@ function migrate_0_17_2 (saved) {
   } catch (err) {}
   ts.posterFileName = NEW_HASH + '.jpg'
 
-  fs.rmSync(path.join(config.TORRENT_PATH, ts.torrentFileName), { force: true })
+  // Retries match rimraf's old Windows EPERM behavior for files in the
+  // user's config dir.
+  fs.rmSync(path.join(config.TORRENT_PATH, ts.torrentFileName), {
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100
+  })
   copyFileSync(
     path.join(config.STATIC_PATH, 'wiredCd.torrent'),
     path.join(config.TORRENT_PATH, NEW_HASH + '.torrent')
