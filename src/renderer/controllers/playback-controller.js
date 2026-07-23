@@ -1,7 +1,6 @@
 const { ipcRenderer } = require('electron')
 const path = require('path')
 
-const Cast = require('../lib/cast')
 const { dispatch } = require('../lib/dispatcher')
 const telemetry = require('../lib/telemetry')
 const { UnplayableFileError, UnplayableTorrentError } = require('../lib/errors')
@@ -14,10 +13,11 @@ const State = require('../lib/state')
 // Controls playback of torrents and files within torrents
 // both local (<video>,<audio>,external player) and remote (cast)
 module.exports = class PlaybackController {
-  constructor (state, config, update) {
+  constructor (state, config, update, cast) {
     this.state = state
     this.config = config
     this.update = update
+    this.cast = cast
   }
 
   // Play a file in a torrent.
@@ -125,7 +125,7 @@ module.exports = class PlaybackController {
     if (!state.playing.isPaused) return
     state.playing.isPaused = false
     if (isCasting(state)) {
-      Cast.play()
+      this.cast.play()
     }
     ipcRenderer.send('onPlayerPlay')
   }
@@ -136,7 +136,7 @@ module.exports = class PlaybackController {
     if (state.playing.isPaused) return
     state.playing.isPaused = true
     if (isCasting(state)) {
-      Cast.pause()
+      this.cast.pause()
     }
     ipcRenderer.send('onPlayerPause')
   }
@@ -152,7 +152,7 @@ module.exports = class PlaybackController {
       console.error('Tried to skip to a non-finite time ' + time)
       return console.trace()
     }
-    if (isCasting(this.state)) Cast.seek(time)
+    if (isCasting(this.state)) this.cast.seek(time)
     else this.state.playing.jumpToTime = time
   }
 
@@ -187,7 +187,7 @@ module.exports = class PlaybackController {
       rate /= 2
     }
     state.playing.playbackRate = rate
-    if (isCasting(state) && !Cast.setRate(rate)) {
+    if (isCasting(state) && !this.cast.setRate(rate)) {
       state.playing.playbackRate = 1
     }
     // Wait a bit before we hide the controls and header again
@@ -208,7 +208,7 @@ module.exports = class PlaybackController {
 
     const state = this.state
     if (isCasting(state)) {
-      Cast.setVolume(volume)
+      this.cast.setVolume(volume)
     } else {
       state.playing.setVolume = volume
     }
@@ -343,7 +343,7 @@ module.exports = class PlaybackController {
     // Quit any external players, like Chromecast/Airplay/etc or VLC
     const state = this.state
     if (isCasting(state)) {
-      Cast.stop()
+      this.cast.stop()
     }
     if (state.playing.location === 'external') {
       ipcRenderer.send('quitExternalPlayer')

@@ -13,6 +13,7 @@ const path = require('path')
 const config = require('../config')
 const { TorrentKeyNotFoundError } = require('./lib/errors')
 const torrentPoster = require('./lib/torrent-poster')
+const CastEngine = require('./cast-engine')
 
 // webtorrent 3 is ESM-only; this file is CommonJS, so it loads via dynamic
 // import before anything else runs. The main process waits for the
@@ -72,6 +73,7 @@ let client = null
 // client's lifetime.
 let server = null
 let serverReady = null // Promise that resolves to the listening port
+let castEngine = null
 
 // Used for diffing, so we only send progress updates when necessary
 let prevProgress = null
@@ -105,6 +107,8 @@ function init () {
     stopServer())
   ipcRenderer.on('wt-select-files', (e, infoHash, selections) =>
     selectFiles(infoHash, selections))
+  ipcRenderer.on('wt-cast-command', (e, envelope) =>
+    getCastEngine().handle(envelope))
 
   ipcRenderer.send('ipcReadyWebTorrent')
 
@@ -114,6 +118,17 @@ function init () {
 
   setInterval(updateTorrentProgress, 1000)
   console.timeEnd('init')
+}
+
+function getCastEngine () {
+  if (!castEngine) {
+    castEngine = new CastEngine({
+      getTorrent,
+      getServerInfo,
+      send: envelope => ipcRenderer.send('wt-cast-event', envelope)
+    })
+  }
+  return castEngine
 }
 
 function listenToClientEvents () {
@@ -345,23 +360,25 @@ function ensureServer () {
 }
 
 function startServerFromReadyTorrent (torrent) {
-  // The server is shared; each playback session just gets this torrent's URLs.
-  // Files are routed by infohash and file path (v1 used file index).
-  ensureServer().then(port => {
+  getServerInfo(torrent).then(info => {
+    ipcRenderer.send('wt-server-running', info)
+    ipcRenderer.send('wt-server-' + torrent.infoHash, info)
+  })
+}
+
+function getServerInfo (torrent) {
+  return ensureServer().then(port => {
     const urlSuffix = ':' + port + '/webtorrent/' + torrent.infoHash
-    const info = {
+    return {
       torrentKey: torrent.key,
       localURL: 'http://localhost' + urlSuffix,
       networkURL: 'http://' + networkAddress() + urlSuffix,
       networkAddress: networkAddress(),
-      // URL path segment for each file, in file-index order, so the renderer
-      // can keep addressing files by index
+      // URL path segment for each file, in file-index order, so callers can
+      // keep addressing files by index
       filePaths: torrent.files.map(f =>
         f.path.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/'))
     }
-
-    ipcRenderer.send('wt-server-running', info)
-    ipcRenderer.send('wt-server-' + torrent.infoHash, info)
   })
 }
 

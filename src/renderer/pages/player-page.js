@@ -525,11 +525,11 @@ function renderCastScreen (state) {
 function renderCastOptions (state) {
   if (!state.devices.castMenu) return
 
-  const { location, devices } = state.devices.castMenu
-  const player = state.devices[location]
+  const { devices } = state.devices.castMenu
 
   const items = devices.map((device, ix) => {
-    const isSelected = player.device === device
+    const isSelected = state.devices.session &&
+      state.devices.session.deviceId === device.id
     const name = device.name
     return (
       <li key={ix} onClick={dispatcher('selectCastDevice', ix)}>
@@ -709,8 +709,9 @@ function renderPlayerControls (state) {
   castTypes.forEach(castType => {
     // Do we show this button (eg. the Chromecast button) at all?
     const isCasting = state.playing.location.startsWith(castType)
-    const player = state.devices[castType]
-    if ((!player || player.getDevices().length === 0) && !isCasting) return
+    const devices = (state.devices.items || [])
+      .filter(device => device.protocol === castType)
+    if (devices.length === 0 && !isCasting) return
 
     // Show the button. Three options for eg the Chromecast button:
     let buttonClass, buttonHandler

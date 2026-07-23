@@ -15,8 +15,8 @@ module.exports = {
 
 const http = require('http')
 
-const config = require('../../config')
-const { CastingError } = require('./errors')
+const config = require('../config')
+const { CastingError } = require('./lib/errors')
 
 // Lazy load these for a ~300ms improvement in startup time
 let airplayer, chromecasts, dlnacasts
@@ -58,14 +58,17 @@ function init (appState, callback) {
     // TODO: how do we tell if there are *no longer* any Chromecasts available?
     // From looking at the code, chromecasts.players only grows, never shrinks
     state.devices.chromecast.addDevice(device)
+    update()
   })
 
   dlnacasts.on('update', device => {
     state.devices.dlna.addDevice(device)
+    update()
   })
 
   airplayer.on('update', device => {
     state.devices.airplay.addDevice(device)
+    update()
   })
 }
 
@@ -79,20 +82,49 @@ function testPlayer (type) {
     stop,
     status,
     seek,
-    volume
+    volume,
+    rate
   }
 
   function getDevices () {
     return [{ name: type + '-1' }, { name: type + '-2' }]
   }
 
-  function open () {}
-  function play () {}
-  function pause () {}
-  function stop () {}
+  function open () {
+    setTimeout(() => {
+      state.playing.location = type
+      update()
+    }, 0)
+  }
+  function play (callback) {
+    state.playing.isPaused = false
+    if (callback) callback()
+    update()
+  }
+  function pause (callback) {
+    state.playing.isPaused = true
+    if (callback) callback()
+    update()
+  }
+  function stop (callback) {
+    if (callback) callback()
+  }
   function status () {}
-  function seek () {}
-  function volume () {}
+  function seek (time, callback) {
+    state.playing.currentTime = time
+    if (callback) callback()
+    update()
+  }
+  function volume (value, callback) {
+    state.playing.volume = value
+    if (callback) callback()
+    update()
+  }
+  function rate (value, callback) {
+    state.playing.playbackRate = value
+    if (callback) callback()
+    update()
+  }
 }
 
 // chromecast player implementation

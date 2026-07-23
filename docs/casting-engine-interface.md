@@ -1,6 +1,6 @@
 # Casting engine interface
 
-Status: design note only. This document does not authorize implementation on the current branch.
+Status: the relocation interface is implemented. The protocol-adapter invariants remain design requirements for a future protocol rewrite.
 
 ## Decision
 
@@ -46,8 +46,12 @@ Payloads:
   payload: {
     deviceId: 'protocol-stable identifier',
     torrentKey: 12,
-    fileIndex: 0
-  }
+    fileIndex: 0,
+    isPaused: false,
+    currentTime: 30,
+    volume: 0.8,
+    playbackRate: 1,
+    subtitle: { buffer: 'data:text/vtt;base64,...' } // optional
 }
 
 // Control the active session.
@@ -157,9 +161,9 @@ Each protocol adapter implements the same engine-local interface:
 
 The adapter interface is not IPC and is never imported by the UI or main process. Chromecast may retain `castv2-client` and the existing `multicast-dns` dependency. DLNA may use an owned SSDP implementation. AirPlay remains explicitly best-effort.
 
-## Preconditions for implementation
+## Preconditions for replacing the protocol implementation
 
-A future casting branch must provide all of the following before replacing `src/renderer/lib/cast.js`:
+A future casting branch must provide all of the following before replacing the existing protocol implementation in `src/renderer/cast.js`:
 
 1. Recorded mDNS and SSDP fixtures covering discovery, refresh, expiry, departure, malformed packets, and duplicate devices.
 2. Fake-clock tests for TTL expiration and session polling.
@@ -167,4 +171,4 @@ A future casting branch must provide all of the following before replacing `src/
 4. Hardware smoke checks for one Chromecast and one DLNA renderer; AirPlay is best-effort.
 5. A clean cutover of every casting caller, with no compatibility shim left in the UI renderer.
 
-Until those preconditions are met, the current casting implementation remains unchanged.
+Until those preconditions are met, the current casting protocol implementation remains unchanged in the hidden engine.

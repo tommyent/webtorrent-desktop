@@ -37,9 +37,6 @@ require('./lib/dispatcher').setDispatch(dispatch)
 // From dispatch(...), events are sent to one of the controllers
 let controllers = null
 
-// This dependency is the slowest-loading, so we lazy load it
-let Cast = null
-
 // All state lives in state.js. `state.saved` is read from and written to a file.
 // All other state is ephemeral. First we load state.saved then initialize the app.
 let state
@@ -71,9 +68,13 @@ function onState (err, _state) {
       const MediaController = require('./controllers/media-controller')
       return new MediaController(state)
     }),
+    cast: createGetter(() => {
+      const CastController = require('./controllers/cast-controller')
+      return new CastController(state, update)
+    }),
     playback: createGetter(() => {
       const PlaybackController = require('./controllers/playback-controller')
-      return new PlaybackController(state, config, update)
+      return new PlaybackController(state, config, update, controllers.cast())
     }),
     prefs: createGetter(() => {
       const PrefsController = require('./controllers/prefs-controller')
@@ -184,16 +185,7 @@ function delayedInit () {
   document.addEventListener('webkitvisibilitychange', onVisibilityChange)
   onVisibilityChange()
 
-  lazyLoadCast()
-}
-
-// Lazily loads Chromecast and Airplay support
-function lazyLoadCast () {
-  if (!Cast) {
-    Cast = require('./lib/cast')
-    Cast.init(state, update) // Search the local network for Chromecast and Airplays
-  }
-  return Cast
+  controllers.cast().scan(true)
 }
 
 // React loop:
@@ -300,9 +292,9 @@ const dispatchHandlers = {
   externalPlayerNotFound: () => controllers.media().externalPlayerNotFound(),
 
   // Remote casting: Chromecast, Airplay, etc
-  toggleCastMenu: (deviceType) => lazyLoadCast().toggleMenu(deviceType),
-  selectCastDevice: (index) => lazyLoadCast().selectDevice(index),
-  stopCasting: () => lazyLoadCast().stop(),
+  toggleCastMenu: (deviceType) => controllers.cast().toggleMenu(deviceType),
+  selectCastDevice: (index) => controllers.cast().selectDevice(index),
+  stopCasting: () => controllers.cast().stop(),
 
   // Preferences screen
   preferences: () => controllers.prefs().show(),
@@ -381,6 +373,7 @@ function setupIpc () {
   ipcRenderer.on('wt-poster', (e, ...args) => tc.torrentPosterSaved(...args))
   ipcRenderer.on('wt-audio-metadata', (e, ...args) => tc.torrentAudioMetadata(...args))
   ipcRenderer.on('wt-server-running', (e, ...args) => tc.torrentServerRunning(...args))
+  ipcRenderer.on('wt-cast-event', (e, envelope) => controllers.cast().onEvent(envelope))
 
   ipcRenderer.on('wt-uncaught-error', (e, err) => telemetry.logUncaughtError('webtorrent', err))
 
