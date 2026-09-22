@@ -33,6 +33,9 @@ function init () {
     width: 150
   })
 
+  win.webContents.on('will-navigate', event => event.preventDefault())
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.session.setPermissionRequestHandler((contents, permission, respond) => respond(false))
   win.loadURL(config.WINDOW_WEBTORRENT)
 
   // Prevent killing the WebTorrent process

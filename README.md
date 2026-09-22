@@ -190,12 +190,9 @@ https://material-ui.com/getting-started/installation
 
 ### Privacy
 
-WebTorrent Desktop collects some basic usage stats to help us make the app better.
-For example, we track how well the play button works. How often does it succeed?
-Time out? Show a missing codec error?
-
-The app never sends any personally identifying information, nor does it track which
-torrents you add.
+This fork does not send telemetry or crash reports, fetch announcements, or check
+for upstream updates. Install updates manually. Torrent networking (peers,
+trackers, DHT, and web seeds) still operates normally.
 
 ## License
 

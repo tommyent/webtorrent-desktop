@@ -170,16 +170,20 @@ function chromecastPlayer () {
     if (!selectedSubtitle) {
       callback()
     } else {
+      const token = require('crypto').randomBytes(32).toString('hex')
       ret.subServer = http.createServer((req, res) => {
+        if (req.url !== '/' + token || req.headers.host !== state.server.networkAddress + ':' + ret.subServer.address().port) {
+          return res.writeHead(403).end()
+        }
         res.writeHead(200, {
           'Content-Type': 'text/vtt;charset=utf-8',
           'Access-Control-Allow-Origin': '*',
           'Transfer-Encoding': 'chunked'
         })
         res.end(Buffer.from(selectedSubtitle.buffer.slice(21), 'base64'))
-      }).listen(0, () => {
+      }).listen(0, state.server.networkAddress, () => {
         const port = ret.subServer.address().port
-        const subtitlesUrl = 'http://' + state.server.networkAddress + ':' + port + '/'
+        const subtitlesUrl = 'http://' + state.server.networkAddress + ':' + port + '/' + token
         callback(subtitlesUrl)
       })
     }

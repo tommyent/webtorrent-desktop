@@ -1,38 +1,31 @@
-// Confines renderer-supplied filesystem paths to torrent download directories
-// the main process actually knows about. The sandboxed renderer can name any
-// string; the shell sinks (openPath / trashItem / showItemInFolder) must only
-// ever touch downloaded torrent data, never arbitrary host paths. Same
-// containment discipline as renderer-files.js's metadata-path checks, applied
-// to the download roots in the authoritative saved state.
+const fs = require('fs')
 const path = require('path')
 
 let getTorrents = () => []
+module.exports = { setTorrentsAccessor, assertDataPath }
 
-module.exports = {
-  setTorrentsAccessor,
-  assertDataPath
-}
+function setTorrentsAccessor (fn) { getTorrents = fn }
 
-function setTorrentsAccessor (fn) {
-  getTorrents = fn
-}
-
-// ponytail: containment under a known torrent root, not exact file-list match.
-// This stops path escape to /etc, ~/.ssh, system binaries, etc. It still allows
-// any file under a download dir the user already pointed a torrent at, which is
-// the same scope the "delete torrent data" feature already has. Tighten to
-// per-file matching only if that marginal case ever matters.
 function assertDataPath (filePath) {
-  if (typeof filePath !== 'string' || filePath.length === 0) {
-    throw new TypeError('Invalid data path')
-  }
-  const roots = getTorrents().map(t => t && t.path).filter(Boolean)
-  const contained = roots.some(root => {
-    const relative = path.relative(root, filePath)
-    return relative === '' ||
-      (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))
+  if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) throw new TypeError('Invalid data path')
+  const target = path.resolve(filePath)
+  const allowed = getTorrents().some(torrent => {
+    if (!torrent || !torrent.path || !torrent.files || !torrent.files.length) return false
+    const root = path.resolve(torrent.path)
+    const files = torrent.files.map(file => path.resolve(root, file.path))
+    const folder = path.resolve(root, torrent.files[0].path.split(/[\\/]/)[0])
+    if (target === root || (!files.includes(target) && target !== folder)) return false
+    const relative = path.relative(root, target)
+    if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return false
+    // Reject symlinks anywhere below the download root, including the target.
+    let current = root
+    for (const part of relative.split(path.sep)) {
+      current = path.join(current, part)
+      try { if (fs.lstatSync(current).isSymbolicLink()) return false } catch (err) {
+        if (err.code !== 'ENOENT') throw err
+      }
+    }
+    return true
   })
-  if (!contained) {
-    throw new TypeError('Path is not within a known torrent download directory')
-  }
+  if (!allowed) throw new TypeError('Path is not known torrent data')
 }

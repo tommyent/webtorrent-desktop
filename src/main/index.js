@@ -2,10 +2,6 @@ console.time('init')
 
 const { app } = require('electron')
 
-// Start crash reporter early, so it takes effect for child processes
-const crashReporter = require('../crash-reporter')
-crashReporter.init()
-
 const config = require('../config')
 const ipc = require('./ipc')
 const log = require('./log')
@@ -81,11 +77,13 @@ function init () {
 
   function onReady (saved) {
     const state = { saved }
+    require('./file-permissions').initialize(saved)
     isReady = true
     let savePromise = Promise.resolve()
     ipc.setModule('stateStore', {
       getSaved: () => state.saved,
       save: saved => {
+        require('./file-permissions').validateSaved(saved)
         state.saved = saved
         const nextSave = savePromise.then(() => State.save(saved))
         savePromise = nextSave.catch(() => {})
@@ -95,7 +93,7 @@ function init () {
 
     // Let the path guard confine renderer-supplied shell paths to the download
     // directories of torrents in the authoritative saved state.
-    require('./data-path').setTorrentsAccessor(() => state.saved.torrents || [])
+    require('./data-path').setTorrentsAccessor(() => require('./file-permissions').getTorrents())
 
     menu.init()
     windows.main.init(state, { hidden })
@@ -136,12 +134,15 @@ function init () {
 
     app.isQuitting = true
     e.preventDefault()
-    app.once('stateSaved', () => app.quit())
+    const onSaved = () => { clearTimeout(timeout); app.quit() }
+    app.once('stateSaved', onSaved)
     windows.main.dispatch('stateSaveImmediate') // try to save state on exit
-    setTimeout(() => {
-      console.error('Saving state took too long. Quitting.')
-      app.quit()
-    }, 4000) // quit after 4 secs, at most
+    const timeout = setTimeout(() => {
+      app.removeListener('stateSaved', onSaved)
+      app.isQuitting = false
+      windows.main.show()
+      windows.main.send('error', 'Unable to save before quitting. Please try again.')
+    }, 4000)
   })
 
   app.on('activate', () => {
@@ -152,15 +153,11 @@ function init () {
 function delayedInit (state) {
   if (app.isQuitting) return
 
-  const announcement = require('./announcement')
   const dock = require('./dock')
-  const updater = require('./updater')
   const FolderWatcher = require('./folder-watcher')
   const folderWatcher = new FolderWatcher({ window: windows.main, state })
 
-  announcement.init()
   dock.init()
-  updater.init()
 
   ipc.setModule('folderWatcher', folderWatcher)
   if (folderWatcher.isEnabled()) {
@@ -250,6 +247,7 @@ function processArgv (argv) {
     }
   })
   if (torrentIds.length > 0) {
+    require('./file-permissions').select(torrentIds.filter(id => require('path').isAbsolute(id)))
     windows.main.dispatch('onOpen', torrentIds)
   }
 }

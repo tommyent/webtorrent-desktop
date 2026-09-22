@@ -35,20 +35,25 @@ async function inspectCreateInput (inputPaths) {
     throw new TypeError('Invalid create-torrent paths')
   }
 
-  const batches = await Promise.all(inputPaths.map(async filePath => {
-    const stat = await fs.stat(filePath)
-    if (!stat.isDirectory()) {
-      return [{ name: path.basename(filePath), path: filePath, size: stat.size }]
+  const permissions = require('./file-permissions')
+  const files = []
+  async function visit (filePath, depth) {
+    if (depth > 64 || files.length >= 10000) throw new Error('Folder exceeds 64 levels or 10,000 files')
+    permissions.assertSelected(filePath)
+    const stat = await fs.lstat(filePath)
+    if (stat.isSymbolicLink()) throw new Error('Symbolic links cannot be seeded')
+    if (stat.isDirectory()) {
+      for (const name of await fs.readdir(filePath)) await visit(path.join(filePath, name), depth + 1)
+    } else if (stat.isFile()) {
+      files.push({ name: path.basename(filePath), path: filePath, size: stat.size })
     }
-
-    const names = await fs.readdir(filePath)
-    return inspectCreateInput(names.map(name => path.join(filePath, name)))
-  }))
-
-  return batches.flat().sort((a, b) => a.path < b.path ? -1 : Number(a.path > b.path))
+  }
+  for (const filePath of inputPaths) await visit(filePath, 0)
+  return files.sort((a, b) => a.path.localeCompare(b.path))
 }
 
 function copyTorrentFile (source, destination) {
+  require('./file-permissions').consumeDestination(destination)
   assertPath(destination)
   assertMetadataPath(config.TORRENT_PATH, source)
   return fs.copyFile(source, destination)
@@ -59,12 +64,12 @@ function deleteTorrentMetadata (torrentFileName, posterFileName) {
     metadataPath(config.TORRENT_PATH, torrentFileName),
     metadataPath(config.POSTER_PATH, posterFileName)
   ].filter(Boolean)
-  return Promise.all(paths.map(filePath => fs.unlink(filePath)))
+  return Promise.all(paths.map(filePath => fs.unlink(filePath).catch(err => { if (err.code !== 'ENOENT') throw err })))
 }
 
 function metadataPath (directory, fileName) {
   if (!fileName) return null
-  if (typeof fileName !== 'string' || path.basename(fileName) !== fileName) {
+  if (typeof fileName !== 'string' || path.basename(fileName) !== fileName || fileName === '.' || fileName === '..') {
     throw new TypeError('Invalid metadata file name')
   }
   return path.join(directory, fileName)

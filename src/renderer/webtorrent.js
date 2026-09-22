@@ -71,8 +71,8 @@ let client = null
 // server per client (createServer throws on the second call, even after the
 // first server is destroyed), so we create it lazily and share it for the
 // client's lifetime.
-let server = null
-let serverReady = null // Promise that resolves to the listening port
+let serverReady = null
+let playbackGrant = null
 let castEngine = null
 
 // Used for diffing, so we only send progress updates when necessary
@@ -124,7 +124,7 @@ function getCastEngine () {
   if (!castEngine) {
     castEngine = new CastEngine({
       getTorrent,
-      getServerInfo,
+      getServerInfo: (torrent, index) => ensureServer().cast(torrent, index, networkAddress()),
       send: envelope => ipcRenderer.send('wt-cast-event', envelope)
     })
   }
@@ -271,8 +271,9 @@ function saveTorrentFile (torrentKey) {
 function generateTorrentPoster (torrentKey) {
   const torrent = getTorrent(torrentKey)
   // Video posters stream a frame over the shared server, so it must be up
-  ensureServer().then(port => {
-    torrentPoster(torrent, 'http://localhost:' + port, (err, buf, extension) => {
+  ensureServer().grant(torrent).then(grant => {
+    torrentPoster(torrent, grant.baseURL, (err, buf, extension) => {
+      grant.release()
       if (err) return console.log('error generating poster: %o', err)
       // save it for next time
       fs.mkdir(config.POSTER_PATH, { recursive: true }, err => {
@@ -285,8 +286,8 @@ function generateTorrentPoster (torrentKey) {
           ipcRenderer.send('wt-poster', torrentKey, posterFileName)
         })
       })
-    })
-  })
+    }, grant.token)
+  }).catch(onError)
 }
 
 function updateTorrentProgress () {
@@ -344,17 +345,14 @@ function getTorrentProgress () {
 
 function startServer (infoHash) {
   const torrent = getTorrentByInfoHash(infoHash)
+  if (!torrent) return onError(new Error('Unknown torrent'))
   if (torrent.ready) startServerFromReadyTorrent(torrent)
   else torrent.once('ready', () => startServerFromReadyTorrent(torrent))
 }
 
 function ensureServer () {
   if (!serverReady) {
-    // force the Node server: this renderer has a window object, so webtorrent
-    // would otherwise pick the browser ServiceWorker server
-    server = client.createServer(undefined, 'node')
-    serverReady = new Promise(resolve =>
-      server.listen(0, () => resolve(server.address().port)))
+    serverReady = new (require('./lib/stream-server'))(client)
   }
   return serverReady
 }
@@ -363,28 +361,19 @@ function startServerFromReadyTorrent (torrent) {
   getServerInfo(torrent).then(info => {
     ipcRenderer.send('wt-server-running', info)
     ipcRenderer.send('wt-server-' + torrent.infoHash, info)
-  })
+  }).catch(onError)
 }
 
-function getServerInfo (torrent) {
-  return ensureServer().then(port => {
-    const urlSuffix = ':' + port + '/webtorrent/' + torrent.infoHash
-    return {
-      torrentKey: torrent.key,
-      localURL: 'http://localhost' + urlSuffix,
-      networkURL: 'http://' + networkAddress() + urlSuffix,
-      networkAddress: networkAddress(),
-      // URL path segment for each file, in file-index order, so callers can
-      // keep addressing files by index
-      filePaths: torrent.files.map(f =>
-        f.path.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/'))
-    }
-  })
+async function getServerInfo (torrent) {
+  stopServer()
+  playbackGrant = await ensureServer().grant(torrent)
+  const { release, baseURL, token, ...info } = playbackGrant
+  return info
 }
 
 function stopServer () {
-  // The shared server stays up for the client's lifetime (it only serves
-  // localhost); playback state is cleared by the main process.
+  if (playbackGrant) playbackGrant.release()
+  playbackGrant = null
 }
 
 console.log('Initializing...')
@@ -495,7 +484,6 @@ window.testOfflineMode = async () => {
   // Destroy the online client (and its server) so the replacement client
   // doesn't leak sockets or fight over the shared-server slot.
   await new Promise(resolve => client.destroy(resolve))
-  server = null
   serverReady = null
   client = window.client = new WebTorrent({
     ...CLIENT_OPTIONS,

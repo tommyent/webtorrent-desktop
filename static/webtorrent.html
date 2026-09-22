@@ -15,9 +15,8 @@
         height: 140px;
       }
     </style>
-    <script>
-      require('../build/renderer/webtorrent.js')
-    </script>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src http://127.0.0.1:* blob:; connect-src *; img-src 'self' data: blob:">
+    <script src="webtorrent-init.js"></script>
   </head>
   <body>
     <img alt="WebTorrent" src="WebTorrent.png">

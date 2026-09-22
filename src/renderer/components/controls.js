@@ -10,6 +10,7 @@ class FlatButton extends React.Component {
     const { className, style, label, onClick, autoFocus, disabled } = this.props
     return (
       <button
+        aria-label={this.props['aria-label']}
         type='button'
         className={'btn flat ' + (className || '')}
         style={style}
@@ -28,6 +29,7 @@ class RaisedButton extends React.Component {
     const { className, style, label, onClick, autoFocus, disabled, primary } = this.props
     return (
       <button
+        aria-label={this.props['aria-label']}
         type='button'
         className={'btn raised ' + (primary ? 'primary ' : '') + (className || '')}
         style={style}
@@ -47,6 +49,7 @@ class Checkbox extends React.Component {
     return (
       <label className={'checkbox ' + (className || '')} style={style} onClick={onClick}>
         <input
+          aria-label={this.props['aria-label']}
           type='checkbox'
           style={iconStyle}
           checked={!!checked}
@@ -66,6 +69,7 @@ class TextField extends React.Component {
     } = this.props
     const common = {
       id,
+      'aria-label': this.props['aria-label'],
       placeholder: hintText,
       disabled,
       value,

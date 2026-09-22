@@ -30,13 +30,17 @@ module.exports = class Player extends React.Component {
     )
   }
 
-  onComponentWillUnmount () {
+  componentWillUnmount () {
     // Unload the media element so that Chromium stops trying to fetch data
     const tag = document.querySelector('audio,video')
-    if (!tag) return
-    tag.pause()
-    tag.src = ''
-    tag.load()
+    if (tag) {
+      tag.pause()
+      tag.removeAttribute('src')
+      tag.load()
+    }
+    for (const action of ['pause', 'play', 'nexttrack', 'previoustrack']) {
+      navigator.mediaSession.setActionHandler(action, null)
+    }
     navigator.mediaSession.metadata = null
   }
 }
@@ -79,7 +83,9 @@ function renderMedia (state) {
     if (state.playing.isPaused && !mediaElement.paused) {
       mediaElement.pause()
     } else if (!state.playing.isPaused && mediaElement.paused) {
-      mediaElement.play()
+      mediaElement.play().catch(err => {
+        if (err.name !== 'AbortError') dispatch('error', err)
+      })
     }
     // When the user clicks or drags on the progress bar, jump to that position
     if (state.playing.jumpToTime != null) {
@@ -191,8 +197,6 @@ function renderMedia (state) {
         dispatch('mediaError', 'Audio codec unsupported')
       }
 
-      dispatch('mediaSuccess')
-
       const dimensions = {
         width: mediaElement.videoWidth,
         height: mediaElement.videoHeight
@@ -219,8 +223,6 @@ function renderMedia (state) {
       if (mediaElement.audioTracks && mediaElement.audioTracks.length === 0) {
         dispatch('mediaError', 'Audio codec unsupported')
       }
-
-      dispatch('mediaSuccess')
     }
   }
 
@@ -532,10 +534,12 @@ function renderCastOptions (state) {
       state.devices.session.deviceId === device.id
     const name = device.name
     return (
-      <li key={ix} onClick={dispatcher('selectCastDevice', ix)}>
-        <i className='icon'>{isSelected ? 'radio_button_checked' : 'radio_button_unchecked'}</i>
-        {' '}
-        {name}
+      <li key={ix}>
+        <button type='button' onClick={dispatcher('selectCastDevice', ix)}>
+          <i className='icon'>{isSelected ? 'radio_button_checked' : 'radio_button_unchecked'}</i>
+          {' '}
+          {name}
+        </button>
       </li>
     )
   })
@@ -554,9 +558,11 @@ function renderSubtitleOptions (state) {
   const items = subtitles.tracks.map((track, ix) => {
     const isSelected = state.playing.subtitles.selectedIndex === ix
     return (
-      <li key={ix} onClick={dispatcher('selectSubtitle', ix)}>
-        <i className='icon'>{'radio_button_' + (isSelected ? 'checked' : 'unchecked')}</i>
-        {track.label}
+      <li key={ix}>
+        <button type='button' onClick={dispatcher('selectSubtitle', ix)}>
+          <i className='icon'>{'radio_button_' + (isSelected ? 'checked' : 'unchecked')}</i>
+          {track.label}
+        </button>
       </li>
     )
   })
@@ -566,9 +572,11 @@ function renderSubtitleOptions (state) {
   return (
     <ul key='subtitle-options' className='options-list'>
       {items}
-      <li onClick={dispatcher('selectSubtitle', -1)}>
-        <i className='icon'>{noneClass}</i>
-        None
+      <li>
+        <button type='button' onClick={dispatcher('selectSubtitle', -1)}>
+          <i className='icon'>{noneClass}</i>
+          None
+        </button>
       </li>
     </ul>
   )
@@ -581,9 +589,11 @@ function renderAudioTrackOptions (state) {
   const items = audioTracks.tracks.map((track, ix) => {
     const isSelected = state.playing.audioTracks.selectedIndex === ix
     return (
-      <li key={ix} onClick={dispatcher('selectAudioTrack', ix)}>
-        <i className='icon'>{'radio_button_' + (isSelected ? 'checked' : 'unchecked')}</i>
-        {track.label}
+      <li key={ix}>
+        <button type='button' onClick={dispatcher('selectAudioTrack', ix)}>
+          <i className='icon'>{'radio_button_' + (isSelected ? 'checked' : 'unchecked')}</i>
+          {track.label}
+        </button>
       </li>
     )
   })
@@ -622,6 +632,14 @@ function renderPlayerControls (state) {
       <div
         key='scrub-bar'
         className='scrub-bar'
+        role='slider' tabIndex={0} aria-label='Playback position'
+        aria-valuemin={0} aria-valuemax={state.playing.duration || 1}
+        aria-valuenow={Math.min(state.playing.currentTime || 0, state.playing.duration || 1)}
+        onKeyDown={event => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+          event.preventDefault()
+          dispatch('skipTo', Math.max(0, Math.min(state.playing.duration, state.playing.currentTime + (event.key === 'ArrowRight' ? 5 : -5))))
+        }}
         draggable='true'
         onMouseMove={handleScrubPreview}
         onMouseOut={clearPreview}
@@ -631,67 +649,71 @@ function renderPlayerControls (state) {
       />
     </div>,
 
-    <i
+    <button
+      type='button'
+      disabled={!Playlist.hasPrevious(state)}
       key='skip-previous'
       className={'icon skip-previous float-left ' + prevClass}
       onClick={dispatcher('previousTrack')}
-      role='button'
       aria-label='Previous track'
     >
       skip_previous
-    </i>,
+    </button>,
 
-    <i
+    <button
+      type='button'
       key='play'
       className='icon play-pause float-left'
       onClick={dispatcher('playPause')}
-      role='button'
       aria-label={state.playing.isPaused ? 'Play' : 'Pause'}
     >
       {state.playing.isPaused ? 'play_arrow' : 'pause'}
-    </i>,
+    </button>,
 
-    <i
+    <button
+      type='button'
+      disabled={!Playlist.hasNext(state)}
       key='skip-next'
       className={'icon skip-next float-left ' + nextClass}
       onClick={dispatcher('nextTrack')}
-      role='button'
       aria-label='Next track'
     >
       skip_next
-    </i>,
+    </button>,
 
-    <i
+    <button
+      type='button'
       key='fullscreen'
       className='icon fullscreen float-right'
       onClick={dispatcher('toggleFullScreen')}
-      role='button'
       aria-label={state.window.isFullScreen ? 'Exit full screen' : 'Enter full screen'}
     >
       {state.window.isFullScreen ? 'fullscreen_exit' : 'fullscreen'}
-    </i>
+    </button>
   ]
 
   if (state.playing.type === 'video') {
     // Show closed captions icon
     elements.push((
-      <i
+      <button
+        type='button'
         key='subtitles'
         className={'icon closed-caption float-right ' + captionsClass}
         onClick={handleSubtitles}
-        role='button'
         aria-label='Closed captions'
       >
         closed_caption
-      </i>
+      </button>
     ), (
-      <i
+      <button
+        type='button'
+        aria-label='Audio tracks'
         key='audio-tracks'
         className={'icon multi-audio float-right ' + multiAudioClass}
         onClick={handleAudioTracks}
       >
         library_music
-      </i>
+      </button>
     ))
   }
 
@@ -731,13 +753,16 @@ function renderPlayerControls (state) {
     const buttonIcon = buttonIcons[castType][isCasting]
 
     elements.push((
-      <i
+      <button
+        type='button'
+        aria-label={(isCasting ? 'Stop ' : 'Cast to ') + castType}
+        disabled={buttonClass === 'disabled'}
         key={castType}
         className={'icon device float-right ' + buttonClass}
         onClick={buttonHandler}
       >
         {buttonIcon}
-      </i>
+      </button>
     ))
   })
 
@@ -760,15 +785,16 @@ function renderPlayerControls (state) {
 
   elements.push((
     <div key='volume' className='volume float-left'>
-      <i
+      <button
+        type='button'
         className='icon volume-icon float-left'
-        onMouseDown={handleVolumeMute}
-        role='button'
+        onClick={handleVolumeMute}
         aria-label='Mute'
       >
         {volumeIcon}
-      </i>
+      </button>
       <input
+        aria-label='Volume'
         className='volume-slider float-right'
         type='range' min='0' max='1' step='0.05'
         value={volume}

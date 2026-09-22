@@ -16,26 +16,26 @@ class Header extends React.Component {
       >
         {this.getTitle()}
         <div className='nav left float-left'>
-          <i
+          <button
+            type='button'
             className={'icon back ' + (loc.hasBack() ? '' : 'disabled')}
             title='Back'
             onClick={dispatcher('back')}
-            role='button'
-            aria-disabled={!loc.hasBack()}
+            disabled={!loc.hasBack()}
             aria-label='Back'
           >
             chevron_left
-          </i>
-          <i
+          </button>
+          <button
+            type='button'
             className={'icon forward ' + (loc.hasForward() ? '' : 'disabled')}
             title='Forward'
             onClick={dispatcher('forward')}
-            role='button'
-            aria-disabled={!loc.hasForward()}
+            disabled={!loc.hasForward()}
             aria-label='Forward'
           >
             chevron_right
-          </i>
+          </button>
         </div>
         <div className='nav right float-right'>
           {this.getAddButton()}
@@ -54,14 +54,14 @@ class Header extends React.Component {
     const state = this.props.state
     if (state.location.url() !== 'home') return null
     return (
-      <i
+      <button
+        type='button'
         className='icon add'
         title='Add torrent'
         onClick={dispatcher('openFiles')}
-        role='button'
       >
         add
-      </i>
+      </button>
     )
   }
 }

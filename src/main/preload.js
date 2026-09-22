@@ -1,4 +1,4 @@
-const { clipboard, contextBridge, ipcRenderer, shell, webUtils } = require('electron')
+const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 const config = ipcRenderer.sendSync('rendererConfig')
 
@@ -31,7 +31,7 @@ contextBridge.exposeInMainWorld('webtorrent', {
     onEvent: callback => on('wt-cast-event', callback)
   },
   clipboard: {
-    readText: () => clipboard.readText()
+    readText: () => ipcRenderer.invoke('readClipboardText')
   },
   dialogs: {
     openFiles: () => ipcRenderer.send('openFiles'),
@@ -53,11 +53,14 @@ contextBridge.exposeInMainWorld('webtorrent', {
     }),
     open: (filePath, mediaURL, title) =>
       ipcRenderer.send('openExternalPlayer', filePath, mediaURL, title),
-    openInstallPage: () => shell.openExternal('https://www.videolan.org/vlc/'),
+    openInstallPage: () => ipcRenderer.invoke('openHelpPage', 'vlc'),
     quit: () => ipcRenderer.send('quitExternalPlayer')
   },
   droppedFiles: {
-    getPath: file => webUtils.getPathForFile(file)
+    getPath: file => {
+      const filePath = webUtils.getPathForFile(file)
+      return filePath ? ipcRenderer.sendSync('grantDroppedFile', filePath) : ''
+    }
   },
   folderWatcher: {
     start: () => ipcRenderer.send('startFolderWatcher'),
@@ -90,7 +93,7 @@ contextBridge.exposeInMainWorld('webtorrent', {
   },
   shell: {
     openReleasePage: () =>
-      shell.openExternal('https://github.com/webtorrent/webtorrent-desktop/releases')
+      ipcRenderer.invoke('openHelpPage', 'releases')
   },
   state: {
     load: () => ipcRenderer.invoke('stateLoad'),
@@ -99,9 +102,6 @@ contextBridge.exposeInMainWorld('webtorrent', {
   },
   subtitles: {
     load: filePaths => ipcRenderer.invoke('loadSubtitles', filePaths)
-  },
-  telemetry: {
-    send: data => ipcRenderer.invoke('sendTelemetry', data)
   },
   torrent: {
     create: (torrentKey, options) => ipcRenderer.send('wt-create-torrent', torrentKey, options),
@@ -128,7 +128,7 @@ contextBridge.exposeInMainWorld('webtorrent', {
     onWarning: callback => on('wt-warning', callback),
     onceReady: (infoHash, callback) => once('wt-ready-' + infoHash, callback),
     onceServerRunning: callback => once('wt-server-running', callback),
-    moveDataToTrash: filePath => ipcRenderer.send('moveItemToTrash', filePath),
+    moveDataToTrash: filePath => ipcRenderer.invoke('moveItemToTrash', filePath),
     openPath: filePath => ipcRenderer.send('openPath', filePath),
     saveFile: torrentKey => ipcRenderer.send('wt-save-torrent-file', torrentKey),
     selectFiles: (infoHash, selections) =>

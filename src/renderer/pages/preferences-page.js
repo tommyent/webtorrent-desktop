@@ -246,6 +246,7 @@ class PreferencesPage extends React.Component {
     return (
       <Preference>
         <TextField
+          aria-label='Additional trackers'
           className='torrent-trackers control'
           style={textFieldStyle}
           textareaStyle={textareaStyle}

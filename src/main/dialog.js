@@ -7,6 +7,7 @@ module.exports = {
 }
 
 const { dialog } = require('electron')
+const permissions = require('./file-permissions')
 
 const log = require('./log')
 const windows = require('./windows')
@@ -61,7 +62,7 @@ function openFiles () {
         properties: ['openFile']
       }
   setTitle(opts.title)
-  const selectedPaths = dialog.showOpenDialogSync(windows.main.win, opts)
+  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts))
   resetTitle()
   if (!Array.isArray(selectedPaths)) return
   windows.main.dispatch('onOpen', selectedPaths)
@@ -79,7 +80,7 @@ function openTorrentFile () {
     properties: ['openFile', 'multiSelections']
   }
   setTitle(opts.title)
-  const selectedPaths = dialog.showOpenDialogSync(windows.main.win, opts)
+  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts))
   resetTitle()
   if (!Array.isArray(selectedPaths)) return
   selectedPaths.forEach(selectedPath => {
@@ -114,7 +115,7 @@ function resetTitle () {
  */
 function showOpenSeed (opts) {
   setTitle(opts.title)
-  const selectedPaths = dialog.showOpenDialogSync(windows.main.win, opts)
+  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts))
   resetTitle()
   if (!Array.isArray(selectedPaths)) return
   windows.main.dispatch('showCreateTorrent', selectedPaths)

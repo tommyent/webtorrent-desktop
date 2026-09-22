@@ -91,7 +91,7 @@ module.exports = class TorrentController {
       if (!this.state.window.isFocused) {
         this.state.dock.badge += 1
       }
-      showDoneNotification(torrentSummary)
+      showDoneNotification(torrentSummary, this.state.playing.isPaused)
       api.dock.downloadFinished(getTorrentPath(torrentSummary))
     }
 
@@ -170,7 +170,7 @@ function getTorrentPath (torrentSummary) {
   return itemPath
 }
 
-function showDoneNotification (torrent) {
+function showDoneNotification (torrent, isPaused) {
   const notif = new window.Notification('Download Complete', {
     body: torrent.name,
     silent: true
@@ -181,5 +181,5 @@ function showDoneNotification (torrent) {
   }
 
   // Only play notification sound if player is inactive
-  if (this.state.playing.isPaused) sound.play('DONE')
+  if (isPaused) sound.play('DONE')
 }

@@ -9,6 +9,7 @@ const log = require('./log')
 const menu = require('./menu')
 const rendererFiles = require('./renderer-files')
 const windows = require('./windows')
+const permissions = require('./file-permissions')
 
 // Messages from the main process, to be sent once the WebTorrent process starts
 const messageQueueMainToWebTorrent = []
@@ -51,7 +52,7 @@ function init () {
       APP_VERSION: config.APP_VERSION,
       APP_WINDOW_TITLE: config.APP_WINDOW_TITLE,
       DEFAULT_DOWNLOAD_PATH: config.DEFAULT_DOWNLOAD_PATH,
-      DEFAULT_ANNOUNCE_LIST: require('create-torrent').announceList,
+      DEFAULT_ANNOUNCE_LIST: [],
       DELAYED_INIT: config.DELAYED_INIT,
       IS_PORTABLE: config.IS_PORTABLE,
       IS_PRODUCTION: config.IS_PRODUCTION,
@@ -64,6 +65,10 @@ function init () {
       WINDOW_MIN_WIDTH: config.WINDOW_MIN_WIDTH
     }
   })
+  ipcMain.handle('readClipboardText', e => {
+    assertMainSender(e)
+    return electron.clipboard.readText()
+  })
   ipcMain.on('rendererPath', (e, operation, args) => {
     assertMainSender(e)
     const path = require('path')
@@ -75,6 +80,13 @@ function init () {
     } else {
       e.returnValue = null
     }
+  })
+
+  ipcMain.handle('openHelpPage', (e, page) => {
+    assertMainSender(e)
+    const urls = { vlc: 'https://www.videolan.org/vlc/', releases: 'https://github.com/tommyent/webtorrent-desktop/releases' }
+    if (!Object.hasOwn(urls, page)) throw new TypeError('Unknown help page')
+    return electron.shell.openExternal(urls[page])
   })
 
   ipcMain.handle('stateLoad', e => {
@@ -120,12 +132,11 @@ function init () {
     return rendererFiles.deleteTorrentMetadata(torrentFileName, posterFileName)
   })
 
-  ipcMain.handle('sendTelemetry', (e, data) => {
-    assertMainSender(e)
-    return require('./telemetry').send(data)
-  })
   ipcMain.handle('loadSubtitles', (e, filePaths) => {
     assertMainSender(e)
+    for (const filePath of filePaths) {
+      try { permissions.assertSelected(filePath) } catch { require('./data-path').assertDataPath(filePath) }
+    }
     return require('./subtitles').load(filePaths)
   })
 
@@ -238,9 +249,10 @@ function init () {
     require('./data-path').assertDataPath(filePath)
     require('./shell').showItemInFolder(filePath)
   })
-  ipcMain.on('moveItemToTrash', (e, filePath) => {
+  ipcMain.handle('moveItemToTrash', (e, filePath) => {
+    assertMainSender(e)
     require('./data-path').assertDataPath(filePath)
-    require('./shell').moveItemToTrash(filePath)
+    return require('./shell').moveItemToTrash(filePath)
   })
 
   /**
@@ -284,6 +296,12 @@ function init () {
    * every call site was a sync remote.* lookup, so the handlers are sync too.
    */
 
+  ipcMain.on('grantDroppedFile', (e, filePath) => {
+    assertMainSender(e)
+    permissions.select([filePath])
+    e.returnValue = filePath
+  })
+
   ipcMain.on('getPath', (e, key) => {
     e.returnValue = typeof key === 'string' ? app.getPath(key) : ''
   })
@@ -297,11 +315,11 @@ function init () {
   })
 
   ipcMain.on('showOpenDialogSync', (e, opts) => {
-    e.returnValue = electron.dialog.showOpenDialogSync(main.win, Object(opts))
+    e.returnValue = permissions.select(electron.dialog.showOpenDialogSync(main.win, Object(opts)))
   })
 
   ipcMain.on('showSaveDialogSync', (e, opts) => {
-    e.returnValue = electron.dialog.showSaveDialogSync(main.win, Object(opts))
+    e.returnValue = permissions.destination(electron.dialog.showSaveDialogSync(main.win, Object(opts)))
   })
 
   ipcMain.on('openTorrentListContextMenu', (e, info) =>
@@ -320,6 +338,10 @@ function init () {
   })
 
   ipcMain.on('openExternalPlayer', (e, filePath, mediaURL, title) => {
+    const url = new URL(mediaURL)
+    if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.searchParams.get('token')) {
+      throw new TypeError('Invalid external playback URL')
+    }
     const externalPlayer = require('./external-player')
     const shortcuts = require('./shortcuts')
     const thumbar = require('./thumbar')
@@ -350,7 +372,21 @@ function init () {
   ipcMain.emit = (name, e, ...args) => {
     // Relay messages between the main window and the WebTorrent hidden window
     if (name.startsWith('wt-') && !app.isQuitting) {
+      if (windows.main.win && e.sender === windows.main.win.webContents) {
+        try {
+          if (name === 'wt-create-torrent') args[1] = permissions.seedOptions(args[1])
+          if (name === 'wt-start-torrenting') {
+            const saved = modules.stateStore.getSaved()
+            const known = permissions.getTorrents().some(t => t.path === args[2])
+            if (args[2] !== saved.prefs.downloadPath && !known) permissions.assertSelected(args[2])
+          }
+        } catch (err) {
+          windows.main.send('error', err.message)
+          return
+        }
+      }
       if (windows.webtorrent.win && e.sender === windows.webtorrent.win.webContents) {
+        if (['wt-metadata', 'wt-ready', 'wt-done'].includes(name)) permissions.recordTorrent(args[1])
         // Send message to main window
         windows.main.send(name, ...args)
         log('webtorrent: got %s', name)
@@ -385,6 +421,11 @@ function init () {
     }
 
     // Emit all other events normally
-    oldEmit.call(ipcMain, name, e, ...args)
+    try {
+      oldEmit.call(ipcMain, name, e, ...args)
+    } catch (err) {
+      if (e.returnValue === undefined) e.returnValue = null
+      windows.main.send('error', err.message)
+    }
   }
 }

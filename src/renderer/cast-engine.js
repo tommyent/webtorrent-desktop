@@ -84,7 +84,7 @@ module.exports = class CastEngine {
 
     const torrent = this.getTorrent(payload.torrentKey)
     if (!torrent.files[payload.fileIndex]) throw new RangeError('Invalid cast file index')
-    const server = await this.getServerInfo(torrent)
+    const server = await this.getServerInfo(torrent, payload.fileIndex)
 
     const sessionId = `cast-session-${++this.sessionCounter}`
     this.activeSession = { sessionId, deviceId: payload.deviceId, requestId }
@@ -216,7 +216,16 @@ module.exports = class CastEngine {
       playbackRate: this.state.playing.playbackRate
     }
     this.send({ type: 'session', payload })
-    if (state === 'stopped') this.activeSession = null
+    if (state === 'stopped') {
+      this.state.server?.release?.()
+      const player = this.state.devices.chromecast
+      if (player && player.subServer) {
+        player.subServer.close()
+        player.subServer.closeAllConnections()
+        player.subServer = null
+      }
+      this.activeSession = null
+    }
   }
 
   emitError (requestId, err) {

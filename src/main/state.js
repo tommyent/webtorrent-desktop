@@ -2,7 +2,6 @@ const appConfig = require('application-config')('WebTorrent')
 const path = require('path')
 
 const config = require('../config')
-const defaultAnnounceList = require('create-torrent').announceList.map(arr => arr[0])
 
 appConfig.filePath = path.join(config.CONFIG_PATH, 'config.json')
 
@@ -12,7 +11,22 @@ module.exports = {
 }
 
 async function load () {
-  let saved = await appConfig.read()
+  let saved
+  try {
+    saved = await appConfig.read()
+    if (saved.version && (!saved.prefs || !Array.isArray(saved.torrents))) {
+      throw new SyntaxError('Invalid saved-state structure')
+    }
+  } catch (err) {
+    if (!(err instanceof SyntaxError) && err.name !== 'JSONError') throw err
+    const fs = require('fs/promises')
+    const backup = appConfig.filePath + '.invalid-' + Date.now()
+    await fs.copyFile(appConfig.filePath, backup, require('fs').constants.COPYFILE_EXCL)
+    const { app, dialog } = require('electron')
+    app.whenReady().then(() => dialog.showErrorBox('Preferences could not be read',
+      'The damaged preferences were preserved at ' + backup + '. Your downloaded files have not been changed.'))
+    saved = {}
+  }
 
   if (!saved || !saved.version) {
     console.log('Missing config file: Creating new one')
@@ -21,7 +35,7 @@ async function load () {
 
   const state = { saved }
   require('./migrations').run(state)
-  if (!saved.prefs.globalTrackers) saved.prefs.globalTrackers = defaultAnnounceList
+  if (!saved.prefs.globalTrackers) saved.prefs.globalTrackers = []
   return saved
 }
 
@@ -58,7 +72,7 @@ function setupSavedState () {
       autoAddTorrents: false,
       torrentsFolderPath: '',
       highestPlaybackPriority: true,
-      globalTrackers: defaultAnnounceList
+      globalTrackers: []
     },
     torrents: config.DEFAULT_TORRENTS.map(createTorrentObject),
     torrentsToResume: [],

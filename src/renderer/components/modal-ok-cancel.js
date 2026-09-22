@@ -9,6 +9,7 @@ module.exports = class ModalOKCancel extends React.Component {
     return (
       <div className='float-right'>
         <FlatButton
+          autoFocus
           className='control cancel'
           style={cancelStyle}
           label={cancelText}
@@ -19,7 +20,6 @@ module.exports = class ModalOKCancel extends React.Component {
           primary
           label={okText}
           onClick={onOK}
-          autoFocus
         />
       </div>
     )

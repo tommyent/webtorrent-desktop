@@ -7,7 +7,7 @@ const mediaExtensions = require('./media-extensions')
 
 const msgNoSuitablePoster = 'Cannot generate a poster from any files in the torrent'
 
-function torrentPoster (torrent, serverBaseURL, cb) {
+function torrentPoster (torrent, serverBaseURL, cb, token) {
   // First, try to use a poster image if available
   const posterFile = torrent.files.filter(file => /^poster\.(jpg|png|gif)$/.test(file.name))[0]
   if (posterFile) return extractPoster(posterFile, cb)
@@ -30,7 +30,7 @@ function torrentPoster (torrent, serverBaseURL, cb) {
     case 'image':
       return torrentPosterFromImage(torrent, cb)
     case 'video':
-      return torrentPosterFromVideo(torrent, serverBaseURL, cb)
+      return torrentPosterFromVideo(torrent, serverBaseURL, cb, token)
   }
 }
 
@@ -122,23 +122,33 @@ function torrentPosterFromAudio (torrent, cb) {
     return b
   })
 
-  const extname = path.extname(bestCover.file.name)
-  // webtorrent 3 replaced file.getBuffer(cb) with file.arrayBuffer()
-  bestCover.file.arrayBuffer().then(ab => cb(null, Buffer.from(ab), extname), cb)
+  extractPoster(bestCover.file, cb)
 }
 
-function torrentPosterFromVideo (torrent, serverBaseURL, cb) {
+function torrentPosterFromVideo (torrent, serverBaseURL, cb, token) {
   const file = getLargestFileByExtension(torrent, mediaExtensions.video)
 
   // Stream the frame over the shared client server (webtorrent 3 removed
   // per-torrent servers). file.streamURL is server-relative.
-  const url = serverBaseURL + file.streamURL
+  const url = serverBaseURL + file.streamURL + '?token=' + token
   const video = document.createElement('video')
   video.addEventListener('canplay', onCanPlay)
 
   video.volume = 0
   video.src = url
-  video.play()
+  video.play().catch(finish)
+  video.addEventListener('error', () => finish(new Error('Unable to decode poster video')))
+  const timeout = setTimeout(() => finish(new Error('Poster generation timed out')), 15000)
+  let finished = false
+  function finish (err, buf) {
+    if (finished) return
+    finished = true
+    clearTimeout(timeout)
+    video.pause()
+    video.removeAttribute('src')
+    video.load()
+    cb(err, buf, '.jpg')
+  }
 
   function onCanPlay () {
     video.removeEventListener('canplay', onCanPlay)
@@ -150,17 +160,11 @@ function torrentPosterFromVideo (torrent, serverBaseURL, cb) {
   function onSeeked () {
     video.removeEventListener('seeked', onSeeked)
 
-    const frame = captureFrame(video)
-    const buf = frame && frame.image
-
-    // unload video element
-    video.pause()
-    video.src = ''
-    video.load()
-
-    if (buf.length === 0) return cb(new Error(msgNoSuitablePoster))
-
-    cb(null, buf, '.jpg')
+    try {
+      const frame = captureFrame(video)
+      const buf = frame && frame.image
+      finish(buf && buf.length ? null : new Error(msgNoSuitablePoster), buf)
+    } catch (err) { finish(err) }
   }
 }
 
@@ -170,6 +174,7 @@ function torrentPosterFromImage (torrent, cb) {
 }
 
 function extractPoster (file, cb) {
+  if (file.length > 20 * 1024 * 1024) return cb(new Error('Poster exceeds 20 MiB'))
   const extname = path.extname(file.name)
   file.arrayBuffer().then(ab => cb(null, Buffer.from(ab), extname), cb)
 }

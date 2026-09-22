@@ -15,7 +15,6 @@ const { flushSync } = require('react-dom')
 const { createRoot } = require('react-dom/client')
 
 const config = require('./lib/config')
-const telemetry = require('./lib/telemetry')
 const sound = require('./lib/sound')
 const TorrentPlayer = require('./lib/torrent-player')
 
@@ -48,13 +47,8 @@ function onState (err, _state) {
   state = window.state = _state
   window.dispatch = dispatch
 
-  telemetry.init(state)
+  delete state.saved.telemetry
   sound.init(state)
-
-  // Log uncaught JS errors
-  window.addEventListener(
-    'error', (e) => telemetry.logUncaughtError('window', e), true /* capture */
-  )
 
   // Create controllers
   controllers = {
@@ -166,12 +160,6 @@ function onState (err, _state) {
 
 // Runs a few seconds after the app loads, to avoid slowing down startup time
 function delayedInit () {
-  telemetry.send(state)
-
-  // Send telemetry data every 12 hours, for users who keep the app running
-  // for extended periods of time
-  setInterval(() => telemetry.send(state), 12 * 3600 * 1000)
-
   // Warn if the download dir is gone, eg b/c an external drive is unplugged
   checkDownloadPath()
 
@@ -277,7 +265,6 @@ const dispatchHandlers = {
   // Local media: <video>, <audio>, external players
   mediaStalled: () => controllers.media().mediaStalled(),
   mediaError: (err) => controllers.media().mediaError(err),
-  mediaSuccess: () => controllers.media().mediaSuccess(),
   mediaTimeUpdate: () => controllers.media().mediaTimeUpdate(),
   mediaMouseMoved: () => controllers.media().mediaMouseMoved(),
   mediaControlsMouseEnter: () => controllers.media().controlsMouseEnter(),
@@ -319,7 +306,7 @@ const dispatchHandlers = {
   // Everything else
   onOpen,
   error: onError,
-  uncaughtError: (proc, err) => telemetry.logUncaughtError(proc, err),
+  uncaughtError: (proc, err) => console.error(proc, err),
   stateSave: () => State.save(state),
   stateSaveImmediate: () => State.saveImmediate(state),
   update: () => {} // No-op, just trigger an update
@@ -365,7 +352,7 @@ function setupIpc () {
   api.torrent.onAudioMetadata((...args) => tc.torrentAudioMetadata(...args))
   api.torrent.onServerRunning((...args) => tc.torrentServerRunning(...args))
   api.cast.onEvent(envelope => controllers.cast().onEvent(envelope))
-  api.torrent.onUncaughtError(err => telemetry.logUncaughtError('webtorrent', err))
+  api.torrent.onUncaughtError(err => console.error('webtorrent', err))
 
   api.app.ready()
 }
@@ -495,9 +482,9 @@ function onError (err) {
 
 const editableHtmlTags = new Set(['input', 'textarea'])
 
-function onPaste (e) {
+async function onPaste (e) {
   if (e && editableHtmlTags.has(e.target.tagName.toLowerCase())) return
-  controllers.torrentList().addTorrent(api.clipboard.readText())
+  controllers.torrentList().addTorrent(await api.clipboard.readText())
 
   update()
 }

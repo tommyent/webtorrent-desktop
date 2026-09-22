@@ -63,14 +63,15 @@ class PathSelector extends React.Component {
 
     return (
       <div className={this.props.className} style={wrapperStyle}>
-        <div className='label' style={labelStyle}>
+        <label htmlFor={id} className='label' style={labelStyle}>
           {this.props.title}:
-        </div>
+        </label>
         <TextField
           className='control' disabled id={id} value={text}
           inputStyle={textareaStyle} style={textFieldStyle}
         />
         <RaisedButton
+          aria-label={'Change ' + this.props.title}
           className='control' label='Change' onClick={this.handleClick}
           style={buttonStyle}
         />

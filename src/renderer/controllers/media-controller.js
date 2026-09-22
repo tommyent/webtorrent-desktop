@@ -1,5 +1,4 @@
 const api = require('../lib/api')
-const telemetry = require('../lib/telemetry')
 const Playlist = require('../lib/playlist')
 
 // Controls local play back: the <video>/<audio> tag and VLC
@@ -9,10 +8,6 @@ module.exports = class MediaController {
     this.state = state
   }
 
-  mediaSuccess () {
-    telemetry.logPlayAttempt('success')
-  }
-
   mediaStalled () {
     this.state.playing.isStalled = true
   }
@@ -20,7 +15,6 @@ module.exports = class MediaController {
   mediaError (error) {
     const state = this.state
     if (state.location.url() === 'player') {
-      telemetry.logPlayAttempt('error')
       state.playing.location = 'error'
       api.externalPlayer.check(state.saved.prefs.externalPlayerPath)
         .then(isInstalled => {
@@ -58,7 +52,6 @@ module.exports = class MediaController {
 
     const onServerRunning = () => {
       state.playing.isReady = true
-      telemetry.logPlayAttempt('external')
 
       const mediaURL = Playlist.getCurrentLocalURL(state)
       api.externalPlayer.open(

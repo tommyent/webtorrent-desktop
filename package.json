@@ -8,7 +8,7 @@
     "url": "https://webtorrent.io"
   },
   "bugs": {
-    "url": "https://github.com/webtorrent/webtorrent-desktop/issues"
+    "url": "https://github.com/tommyent/webtorrent-desktop/issues"
   },
   "dependencies": {
     "airplayer": "github:webtorrent/airplayer#fix-security",
@@ -18,7 +18,6 @@
     "capture-frame": "4.0.0",
     "chokidar": "3.6.0",
     "chromecasts": "1.10.2",
-    "create-torrent": "5.0.9",
     "debounce": "1.2.1",
     "dlnacasts": "0.1.0",
     "drag-drop": "7.2.0",
@@ -45,7 +44,7 @@
     "@electron/packager": "20.0.4",
     "cross-zip": "^4.0.1",
     "depcheck": "1.4.7",
-    "electron": "43.2.0",
+    "electron": "44.4.3",
     "electron-installer-debian": "3.2.0",
     "electron-installer-redhat": "3.4.0",
     "electron-winstaller": "5.4.4",
@@ -64,7 +63,7 @@
     "node": ">=22.12.0",
     "npm": ">=10.0.0"
   },
-  "homepage": "https://webtorrent.io",
+  "homepage": "https://github.com/tommyent/webtorrent-desktop",
   "keywords": [
     "desktop",
     "electron",
@@ -83,13 +82,15 @@
     },
     "plist": "3.1.1",
     "protobufjs": "8.7.1",
-    "xml2js": "^0.6.2"
+    "xml2js": "^0.6.2",
+    "trim-newlines": "3.0.1",
+    "ip": "npm:@bybrave/ip2@3.0.0"
   },
   "private": true,
   "productName": "WebTorrent",
   "repository": {
     "type": "git",
-    "url": "git://github.com/webtorrent/webtorrent-desktop.git"
+    "url": "https://github.com/tommyent/webtorrent-desktop.git"
   },
   "scripts": {
     "build": "node ./bin/build.js",
@@ -100,9 +101,10 @@
     "package": "node ./bin/package.js",
     "start": "npm run build && electron .",
     "test": "standard && depcheck --ignores=standard --ignore-dirs=build,dist",
-    "test-integration": "npm run build && node ./test",
+    "test-integration": "npm run build && node ./test && node test/test-paste-privacy.js && node test/test-audit-ui.js",
     "update-authors": "./bin/update-authors.sh",
-    "watch": "nodemon --exec \"npm run start\" --ext js,css --ignore build/ --ignore dist/"
+    "watch": "nodemon --exec \"npm run start\" --ext js,css --ignore build/ --ignore dist/",
+    "test-unit": "node test/test-audit-fixes.js && node test/test-select-poster.js"
   },
   "renovate": {
     "extends": [

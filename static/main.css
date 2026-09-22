@@ -361,7 +361,7 @@ textarea,
   padding-right: 4px;
 }
 
-.torrent:hover .metadata {
+.torrent:hover .metadata, .torrent:focus-within .metadata {
   width: calc(100% - 120px);
 }
 
@@ -369,7 +369,7 @@ textarea,
   display: none;
 }
 
-.torrent:hover .torrent-controls {
+.torrent:hover .torrent-controls, .torrent:focus-within .torrent-controls {
   display: block;
 }
 
@@ -1099,3 +1099,17 @@ label.checkbox input[type='checkbox']:focus-visible {
   height: 100%;
   background: #fafafa;
 }
+
+/* Native icon controls keep the existing visual design and keyboard behavior. */
+button.icon { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
+button.icon:focus-visible { outline: 2px solid #63b5ff; outline-offset: 2px; }
+dialog.modal { inset: 0; margin: 0; width: 100%; height: 100%; border: 0; padding: 0; max-width: none; max-height: none; color: inherit; background: transparent; }
+dialog.modal::backdrop { background: transparent; }
+
+.torrent button.name, .torrent button.file-name, .options-list button {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+}
+.torrent button.name { display: block; width: 100%; font-size: 20px; font-weight: bold; line-height: 1.5em; }
+.options-list button { width: 100%; }
+
+.torrent button.file-name { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

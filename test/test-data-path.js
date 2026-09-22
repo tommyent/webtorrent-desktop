@@ -4,10 +4,10 @@ const dataPath = require('../src/main/data-path')
 
 test('data-path: confines shell paths to known torrent download dirs', function (t) {
   const root = path.join(path.sep, 'downloads', 'movies')
-  dataPath.setTorrentsAccessor(() => [{ path: root }, { path: null }, null])
+  dataPath.setTorrentsAccessor(() => [{ path: root, files: [{ path: 'a.mp4' }, { path: 'sub/b.mkv' }] }, { path: null }, null])
 
   // Allowed: the root itself and files/dirs under it
-  t.doesNotThrow(() => dataPath.assertDataPath(root), 'the download dir itself')
+  t.throws(() => dataPath.assertDataPath(root), /known torrent/, 'download directory is never torrent data')
   t.doesNotThrow(() => dataPath.assertDataPath(path.join(root, 'a.mp4')), 'a file under it')
   t.doesNotThrow(() => dataPath.assertDataPath(path.join(root, 'sub', 'b.mkv')), 'a nested file')
 

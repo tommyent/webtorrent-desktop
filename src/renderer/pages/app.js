@@ -3,6 +3,7 @@ const React = require('react')
 
 const Header = require('../components/header')
 const config = require('../lib/config')
+const { dispatch } = require('../lib/dispatcher')
 
 // Perf optimization: Needed immediately, so do not lazy load it below
 const TorrentListPage = require('./torrent-list-page')
@@ -78,12 +79,16 @@ class App extends React.Component {
 
     const ModalContents = Modals[state.modal.id]()
     return (
-      <div key='modal' className='modal'>
+      <dialog
+        key='modal' className='modal' aria-label='Torrent dialog'
+        ref={node => { if (node && !node.open) node.showModal() }}
+        onCancel={event => { event.preventDefault(); dispatch('exitModal') }}
+      >
         <div key='modal-background' className='modal-background' />
         <div key='modal-content' className='modal-content'>
           <ModalContents state={state} />
         </div>
-      </div>
+      </dialog>
     )
   }
 

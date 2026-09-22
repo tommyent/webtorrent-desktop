@@ -86,7 +86,12 @@ module.exports = class TorrentList extends React.Component {
   renderTorrentMetadata (torrentSummary) {
     const name = torrentSummary.name || 'Loading torrent...'
     const elements = [(
-      <div key='name' className='name ellipsis'>{name}</div>
+      <button
+        type='button' key='name' className='name ellipsis'
+        aria-expanded={this.props.state.selectedInfoHash === torrentSummary.infoHash}
+        onClick={dispatcher('toggleSelectTorrent', torrentSummary.infoHash)}
+      >{name}
+      </button>
     )]
 
     // If it's downloading/seeding then show progress info
@@ -124,6 +129,7 @@ module.exports = class TorrentList extends React.Component {
       const isActive = ['downloading', 'seeding'].includes(torrentSummary.status)
       return (
         <Checkbox
+          aria-label={'Download ' + torrentSummary.name}
           key='download-button'
           className={'control download ' + torrentSummary.status}
           style={{
@@ -229,28 +235,30 @@ module.exports = class TorrentList extends React.Component {
     let playButton
     if (!torrentSummary.error && TorrentPlayer.isPlayableTorrentSummary(torrentSummary)) {
       playButton = (
-        <i
+        <button
+          type='button'
           key='play-button'
           title='Start streaming'
           className='icon play'
           onClick={dispatcher('playFile', infoHash)}
         >
           play_circle_outline
-        </i>
+        </button>
       )
     }
 
     return (
       <div className='torrent-controls'>
         {playButton}
-        <i
+        <button
+          type='button'
           key='delete-button'
           className='icon delete'
           title='Remove torrent'
           onClick={dispatcher('confirmDeleteTorrent', infoHash, false)}
         >
           close
-        </i>
+        </button>
       </div>
     )
   }
@@ -283,8 +291,8 @@ module.exports = class TorrentList extends React.Component {
       const sortByName = this.props.state.saved.prefs.sortByName
       const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
       let fileRows = torrentSummary.files
-        .filter((file) => !file.path.includes('/.____padding_file/'))
         .map((file, index) => ({ file, index }))
+        .filter(({ file }) => !file.path.split(/[\\/]/).includes('.____padding_file'))
 
       if (sortByName) {
         fileRows = fileRows.sort((a, b) => collator.compare(a.file.name, b.file.name))
@@ -356,7 +364,7 @@ module.exports = class TorrentList extends React.Component {
           <i className='icon'>{icon}</i>
         </td>
         <td className={'col-name ' + rowClass}>
-          {file.name}
+          <button type='button' className='file-name' onClick={handleClick} disabled={rowClass === 'disabled'}>{file.name}</button>
         </td>
         <td className={'col-progress ' + rowClass}>
           {isSelected ? progress : ''}
@@ -366,9 +374,12 @@ module.exports = class TorrentList extends React.Component {
         </td>
         <td
           className='col-select'
-          onClick={dispatcher('toggleTorrentFile', infoHash, index)}
         >
-          <i className='icon deselect-file'>{isSelected ? 'close' : 'add'}</i>
+          <button
+            type='button' className='icon deselect-file' aria-label={(isSelected ? 'Deselect ' : 'Select ') + file.name}
+            onClick={dispatcher('toggleTorrentFile', infoHash, index)}
+          >{isSelected ? 'close' : 'add'}
+          </button>
         </td>
       </tr>
     )

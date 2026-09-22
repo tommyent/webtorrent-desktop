@@ -17,12 +17,6 @@ const UI_HEADER_HEIGHT = 38
 const UI_TORRENT_HEIGHT = 100
 
 module.exports = {
-  ANNOUNCEMENT_URL: 'https://webtorrent.io/desktop/announcement',
-  AUTO_UPDATE_URL: 'https://webtorrent.io/desktop/update',
-  CRASH_REPORT_URL: 'https://webtorrent.io/desktop/crash-report',
-  TELEMETRY_URL: 'https://webtorrent.io/desktop/telemetry',
-  REQUEST_TIMEOUT: 30e3,
-
   APP_COPYRIGHT: `Copyright © 2014-${new Date().getFullYear()} ${APP_TEAM}`,
   APP_FILE_ICON: path.join(__dirname, '..', 'static', 'WebTorrentFile'),
   APP_ICON: path.join(__dirname, '..', 'static', 'WebTorrent'),
@@ -70,10 +64,10 @@ module.exports = {
 
   DEFAULT_DOWNLOAD_PATH: getDefaultDownloadPath(),
 
-  GITHUB_URL: 'https://github.com/webtorrent/webtorrent-desktop',
-  GITHUB_URL_ISSUES: 'https://github.com/webtorrent/webtorrent-desktop/issues',
+  GITHUB_URL: 'https://github.com/tommyent/webtorrent-desktop',
+  GITHUB_URL_ISSUES: 'https://github.com/tommyent/webtorrent-desktop/issues',
   GITHUB_URL_RAW: 'https://raw.githubusercontent.com/webtorrent/webtorrent-desktop/master',
-  GITHUB_URL_RELEASES: 'https://github.com/webtorrent/webtorrent-desktop/releases',
+  GITHUB_URL_RELEASES: 'https://github.com/tommyent/webtorrent-desktop/releases',
 
   HOME_PAGE_URL: 'https://webtorrent.io',
   TWITTER_PAGE_URL: 'https://twitter.com/WebTorrentApp',

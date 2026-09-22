@@ -5,7 +5,8 @@ module.exports = {
 const fs = require('fs/promises')
 const path = require('path')
 const { Readable } = require('stream')
-const { buffer } = require('stream/consumers')
+const { pipeline } = require('stream/promises')
+const { Writable } = require('stream')
 const LanguageDetect = require('languagedetect')
 const srtToVtt = require('srt-to-vtt')
 
@@ -19,8 +20,22 @@ async function load (filePaths) {
     if (extension !== '.srt' && extension !== '.vtt') {
       throw new TypeError('Invalid subtitle file path')
     }
-    const contents = await fs.readFile(filePath, 'utf8')
-    const buf = await buffer(Readable.from(contents).pipe(srtToVtt()))
+    const handle = await fs.open(filePath, 'r')
+    let contents
+    try {
+      if ((await handle.stat()).size > 5 * 1024 * 1024) throw new Error('Subtitle exceeds 5 MiB')
+      contents = await handle.readFile()
+    } finally {
+      await handle.close()
+    }
+    let buf = contents
+    if (extension === '.srt') {
+      const chunks = []
+      await pipeline(Readable.from([contents]), srtToVtt(), new Writable({
+        write (chunk, encoding, callback) { chunks.push(chunk); callback() }
+      }))
+      buf = Buffer.concat(chunks)
+    }
 
     const vttContents = buf.toString().replace(/(.*-->.*)/g, '')
     let language = new LanguageDetect().detect(vttContents, 2)

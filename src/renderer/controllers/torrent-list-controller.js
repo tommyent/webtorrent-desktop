@@ -207,12 +207,15 @@ module.exports = class TorrentListController {
   }
 
   // TODO: use torrentKey, not infoHash
-  deleteTorrent (infoHash, deleteData) {
+  async deleteTorrent (infoHash, deleteData) {
     const index = this.state.saved.torrents.findIndex((x) => x.infoHash === infoHash)
 
     if (index > -1) {
       const summary = this.state.saved.torrents[index]
-      deleteTorrentFile(summary, deleteData)
+      try { await deleteTorrentFile(summary, deleteData) } catch (err) {
+        dispatch('error', err)
+        return
+      }
 
       // remove torrent from saved list
       this.state.saved.torrents.splice(index, 1)
@@ -226,15 +229,15 @@ module.exports = class TorrentListController {
     }
   }
 
-  deleteAllTorrents (deleteData) {
+  async deleteAllTorrents (deleteData) {
     // Go back to list before the current playing torrent is deleted
     if (this.state.location.url() === 'player') {
       dispatch('backToList')
     }
 
-    this.state.saved.torrents.forEach((summary) => deleteTorrentFile(summary, deleteData))
-
-    this.state.saved.torrents = []
+    for (const summary of [...this.state.saved.torrents]) {
+      await this.deleteTorrent(summary.infoHash, deleteData)
+    }
     dispatch('stateSave')
 
     // prevent user from going forward to a deleted torrent
@@ -296,18 +299,17 @@ module.exports = class TorrentListController {
 // Delete all files in a torrent
 function moveItemToTrash (torrentSummary) {
   const filePath = TorrentSummary.getFileOrFolder(torrentSummary)
-  if (filePath) api.torrent.moveDataToTrash(filePath)
+  if (filePath) return api.torrent.moveDataToTrash(filePath)
 }
 
-function deleteTorrentFile (torrentSummary, deleteData) {
+async function deleteTorrentFile (torrentSummary, deleteData) {
   api.torrent.stop(torrentSummary.infoHash)
 
+  if (deleteData) await moveItemToTrash(torrentSummary)
+
   // remove torrent and poster files
-  api.torrent.deleteMetadata(
+  await api.torrent.deleteMetadata(
     torrentSummary.torrentFileName,
     torrentSummary.posterFileName
-  ).catch(err => dispatch('error', err))
-
-  // optionally delete the torrent data
-  if (deleteData) moveItemToTrash(torrentSummary)
+  )
 }

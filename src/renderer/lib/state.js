@@ -141,5 +141,8 @@ function persist (state, write) {
       return torrent
     })
 
-  write(copy).catch(err => console.error(err))
+  write(copy).catch(err => {
+    console.error(err)
+    require('./dispatcher').dispatch('error', new Error('Unable to save preferences: ' + err.message))
+  })
 }

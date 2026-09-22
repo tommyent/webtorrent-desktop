@@ -32,6 +32,7 @@ function createApp () {
   const rootPath = path.join(__dirname, '..')
   const app = {}
   const reportedRendererErrors = new Set()
+  app.rendererErrors = reportedRendererErrors
 
   function reportRendererError (err) {
     const signature = err.stack || err.message || String(err)
@@ -157,6 +158,7 @@ function wait (ms) {
 
 // Quit the app, end the test, either in success (!err) or failure (err)
 function endTest (app, t, err) {
+  if (app.rendererErrors.size) t.fail([...app.rendererErrors].join('\n'))
   return app.stop().then(function () {
     // Guard: tape's timeoutAfter may have already ended the test; calling
     // t.end() again throws and cascades into every remaining test.
@@ -191,10 +193,11 @@ function screenshotCreateOrCompare (app, t, name, hoverSelector) {
     .then(() => hoverSelector && app.client.moveToObject(hoverSelector))
     .then(() => app.browserWindow.capturePage())
     .then(function (buffer) {
-      if (ssBuf.length === 0) {
+      if (process.env.UPDATE_SCREENSHOTS === '1') {
         console.log('Saving screenshot ' + ssPath)
         fs.writeFileSync(ssPath, buffer)
       } else {
+        if (ssBuf.length === 0) throw new Error('Missing screenshot baseline: ' + ssPath)
         const match = compareIgnoringTransparency(buffer, ssBuf)
         t.ok(match, 'screenshot comparison ' + name)
         if (!match) {
