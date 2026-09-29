@@ -1,0 +1,9 @@
+{
+  "name": "webtorrent-desktop-linux-installers",
+  "private": true,
+  "description": "Linux-only packaging tools, kept out of the root install so npm ci works on Windows. bin/package.js installs these before building .deb and .rpm packages.",
+  "dependencies": {
+    "electron-installer-debian": "3.2.0",
+    "electron-installer-redhat": "3.4.0"
+  }
+}

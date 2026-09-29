@@ -29,6 +29,8 @@ const pkg = require('../package.json')
 const BUILD_NAME = config.APP_NAME + '-v' + config.APP_VERSION
 const BUILD_PATH = path.join(config.ROOT_PATH, 'build')
 const DIST_PATH = path.join(config.ROOT_PATH, 'dist')
+const LINUX_INSTALLERS_PATH = path.join(__dirname, 'linux-installers')
+const requireLinuxInstaller = require('module').createRequire(path.join(LINUX_INSTALLERS_PATH, 'package.json'))
 const argv = minimist(process.argv.slice(2), {
   boolean: [
     'sign'
@@ -540,6 +542,12 @@ function buildLinux (cb) {
   electronPackager(Object.assign({}, all, linux)).then(function (buildPath) {
     console.log('Linux: Packaged electron. ' + buildPath)
 
+    // The .deb and .rpm tools only support macOS and Linux, so they live in
+    // their own package; in the root devDependencies they break npm ci on Windows.
+    if (['deb', 'rpm', 'all'].includes(argv.package)) {
+      cp.execSync('npm ci', { cwd: LINUX_INSTALLERS_PATH, stdio: 'inherit' })
+    }
+
     const tasks = []
     buildPath.forEach(function (filesPath) {
       const destArch = filesPath.split('-').pop()
@@ -568,7 +576,7 @@ function buildLinux (cb) {
     // Create .deb file for Debian-based platforms
     console.log(`Linux: Creating ${destArch} deb...`)
 
-    const installer = require('electron-installer-debian')
+    const installer = requireLinuxInstaller('electron-installer-debian')
 
     const options = {
       src: filesPath + '/',
@@ -612,7 +620,7 @@ function buildLinux (cb) {
     // Create .rpm file for RedHat-based platforms
     console.log(`Linux: Creating ${destArch} rpm...`)
 
-    const installer = require('electron-installer-redhat')
+    const installer = requireLinuxInstaller('electron-installer-redhat')
 
     const options = {
       src: filesPath + '/',

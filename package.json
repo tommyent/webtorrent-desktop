@@ -45,8 +45,6 @@
     "cross-zip": "^4.0.1",
     "depcheck": "1.4.7",
     "electron": "44.4.5",
-    "electron-installer-debian": "3.2.0",
-    "electron-installer-redhat": "3.4.0",
     "electron-winstaller": "5.4.4",
     "esbuild": "^0.28.1",
     "gh-release": "8.1.0",
