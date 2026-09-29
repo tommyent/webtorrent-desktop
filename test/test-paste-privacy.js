@@ -82,15 +82,19 @@ async function main () {
     assert.deepEqual(errors, [])
     console.log('PASS: no background service requests, crash uploads, telemetry bridge, or renderer errors')
   } finally {
-    if (clipboardSaved) {
-      await app.evaluate(async ({ clipboard, ClipboardItem }) => {
-        clipboard.clear()
-        if (global.pasteTestClipboard.length) {
-          await clipboard.write(global.pasteTestClipboard.map(data => new ClipboardItem(data)))
-        }
-      })
+    try {
+      if (clipboardSaved) {
+        await app.evaluate(async ({ clipboard, ClipboardItem }) => {
+          clipboard.clear()
+          // An empty clipboard (as on CI) reads back as an item with no types,
+          // which ClipboardItem rejects.
+          const items = global.pasteTestClipboard.filter(data => Object.keys(data).length)
+          if (items.length) await clipboard.write(items.map(data => new ClipboardItem(data)))
+        })
+      }
+    } finally {
+      await app.close()
     }
-    await app.close()
   }
 }
 
