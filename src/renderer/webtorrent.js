@@ -133,7 +133,7 @@ function getCastEngine () {
 
 function listenToClientEvents () {
   client.on('warning', (err) => ipcRenderer.send('wt-warning', null, err.message))
-  client.on('error', (err) => ipcRenderer.send('wt-error', null, err.message))
+  client.on('error', (err) => ipcRenderer.send(client.destroyed ? 'wt-error' : 'wt-warning', null, err.message))
 }
 
 // Sets the default trackers
