@@ -25,7 +25,13 @@ module.exports = class TorrentList extends React.Component {
         </div>
       )
     }
-    const torrentElems = state.saved.torrents.map(
+    let torrents = state.saved.torrents
+    if (state.saved.prefs.sortCompletedFirst) {
+      // Older saves recorded completion only through status and file modtimes.
+      const completed = t => t.completed ?? (t.status === 'seeding' || !!t.fileModtimes)
+      torrents = [...torrents].sort((a, b) => Number(completed(b)) - Number(completed(a)))
+    }
+    const torrentElems = torrents.map(
       (torrentSummary) => this.renderTorrent(torrentSummary)
     )
     contents.push(...torrentElems)

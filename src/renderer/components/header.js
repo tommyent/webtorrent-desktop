@@ -1,11 +1,12 @@
 const React = require('react')
 
-const { dispatcher } = require('../lib/dispatcher')
+const { dispatch, dispatcher } = require('../lib/dispatcher')
 const config = require('../lib/config')
 
 class Header extends React.Component {
   render () {
-    const loc = this.props.state.location
+    const state = this.props.state
+    const loc = state.location
     return (
       <div
         className='header'
@@ -38,6 +39,18 @@ class Header extends React.Component {
           </button>
         </div>
         <div className='nav right float-right'>
+          {loc.url() === 'home' && (
+            <select
+              className='torrent-sort'
+              aria-label='Sort torrents'
+              title='Sort torrents'
+              value={state.saved.prefs.sortCompletedFirst ? 'completed' : 'added'}
+              onChange={e => dispatch('updatePreferences', 'sortCompletedFirst', e.target.value === 'completed')}
+            >
+              <option value='added'>Recently added</option>
+              <option value='completed'>Completed first</option>
+            </select>
+          )}
           {this.getAddButton()}
         </div>
       </div>

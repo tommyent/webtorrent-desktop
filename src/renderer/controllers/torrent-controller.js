@@ -92,6 +92,8 @@ module.exports = class TorrentController {
     // Update the torrent summary
     const torrentSummary = this.getTorrentSummary(torrentKey)
     torrentSummary.status = 'seeding'
+    torrentSummary.completed = true
+    dispatch('stateSave')
 
     // Notify the user that a torrent finished, but only if we actually DL'd at least part of it.
     // Don't notify if we merely finished verifying data files that were already on disk.
@@ -124,6 +126,10 @@ module.exports = class TorrentController {
         return
       }
       torrentSummary.progress = p
+      if (p.ready && torrentSummary.completed !== p.done) {
+        torrentSummary.completed = p.done
+        dispatch('stateSave')
+      }
     })
 
     // TODO: Find an efficient way to re-enable this line, which allows subtitle

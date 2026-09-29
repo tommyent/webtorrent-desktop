@@ -331,6 +331,7 @@ function getTorrentProgress () {
     return {
       torrentKey: torrent.key,
       ready: torrent.ready,
+      done: torrent.done,
       progress: torrent.progress,
       downloaded: torrent.downloaded,
       downloadSpeed: torrent.downloadSpeed,

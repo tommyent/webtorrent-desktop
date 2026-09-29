@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict')
 const crypto = require('node:crypto')
+const fs = require('node:fs/promises')
 const path = require('node:path')
 const { _electron: electron } = require('playwright')
 
@@ -96,6 +97,32 @@ async function main () {
     for (const name of ['Start streaming', 'Remove torrent']) {
       assert(await page.getByRole('button', { name, exact: true, includeHidden: true }).count() > 0, name + ' has a spoken name')
     }
+
+    // Completed torrents sort ahead of newer additions, even while paused.
+    await page.waitForFunction(hash => window.state.saved.torrents.find(t => t.infoHash === hash)?.completed, hash)
+    await page.evaluate(hash => window.dispatch('toggleTorrent', hash), hash)
+    await page.evaluate(magnet => window.dispatch('addTorrent', magnet), browserMagnet)
+    await page.waitForFunction(hash => window.state.saved.torrents[0].infoHash === hash, browserHash)
+    const firstName = page.locator('.torrent .name').first()
+    assert.equal(await firstName.textContent(), 'First browser torrent')
+    const sort = page.getByRole('navigation').getByRole('combobox', { name: 'Sort torrents', exact: true })
+    await sort.selectOption('completed')
+    assert.equal(await firstName.textContent(), 'monitor-test.mp4')
+    await page.evaluate(() => window.webtorrent.state.saveImmediate(window.state.saved))
+    const saved = JSON.parse(await fs.readFile(path.join(require('./config').TEST_DIR, 'config.json'), 'utf8'))
+    assert.equal(saved.prefs.sortCompletedFirst, true)
+    const completed = saved.torrents.find(t => t.infoHash === hash)
+    assert.equal(completed.status, 'paused')
+    assert.equal(completed.completed, true)
+    assert.equal(completed.progress, undefined, 'completion survives without transient progress')
+    await sort.selectOption('added')
+    assert.equal(await firstName.textContent(), 'First browser torrent')
+    await sort.selectOption('completed')
+    await page.screenshot({ path: path.join(require('node:os').tmpdir(), 'webtorrent-sort.png'), animations: 'disabled' })
+    await page.evaluate(hash => window.dispatch('deleteTorrent', hash, false), browserHash)
+    await page.waitForFunction(hash => !window.state.saved.torrents.some(t => t.infoHash === hash), browserHash)
+    console.log('Audit UI: completed-first sorting and persistence passed')
+
     await page.evaluate(() => window.dispatch('openTorrentAddress'))
     console.log('Audit UI: keyboard playback passed')
     const dialog = page.getByRole('dialog')

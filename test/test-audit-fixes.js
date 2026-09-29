@@ -112,12 +112,40 @@ async function main () {
   const controller = new TorrentController({ saved: { torrents: [summary] }, playing: { isPaused: true }, window: { isFocused: true }, dock: { badge: 0 } })
   controller.torrentDone(1, { bytesReceived: 1 })
   assert.equal(notifications, 1)
+  assert.equal(summary.completed, true)
+  controller.torrentProgress({ torrents: [{ torrentKey: 1, ready: false, done: false }] })
+  assert.equal(summary.completed, true, 'verification preserves the last known completion')
+  controller.torrentProgress({ torrents: [{ torrentKey: 1, ready: true, done: false }] })
+  assert.equal(summary.completed, false, 'verified missing data clears completion')
+  controller.torrentProgress({ torrents: [{ torrentKey: 1, ready: true, done: true }] })
+  assert.equal(summary.completed, true, 'engine completion is retained for paused torrents')
   const TorrentList = require('../build/renderer/pages/torrent-list-page')
   const list = new TorrentList({ state: { saved: { prefs: { sortByName: false } } } })
   const indices = []
   list.renderFileRow = (torrent, file, index) => { indices.push(index); return null }
   list.renderTorrentDetails({ files: [{ path: 'a.mp4' }, { path: '.____padding_file/0' }, { path: 'b.mp4' }] })
   assert.deepEqual(indices, [0, 2])
+
+  // Sorting preserves added order within groups, including paused completions
+  // after a restart, and doesn't rearrange the saved list.
+  const torrents = [
+    { status: 'new' },
+    { status: 'paused', completed: false, fileModtimes: [1] },
+    { status: 'paused', completed: true },
+    { status: 'downloading' },
+    { status: 'seeding' },
+    { status: 'paused', fileModtimes: [1] }
+  ]
+  const sortState = { saved: { prefs: { sortCompletedFirst: true }, torrents } }
+  const sortedList = new TorrentList({ state: sortState })
+  const rendered = []
+  sortedList.renderTorrent = torrent => { rendered.push(torrents.indexOf(torrent)); return null }
+  sortedList.render()
+  assert.deepEqual(rendered, [2, 4, 5, 0, 1, 3])
+  sortState.saved.prefs.sortCompletedFirst = false
+  rendered.length = 0
+  sortedList.render()
+  assert.deepEqual(rendered, [0, 1, 2, 3, 4, 5], 'switching back restores added order')
 
   // Two removals that overlap remove exactly those two torrents from the list.
   const trashWaits = []
