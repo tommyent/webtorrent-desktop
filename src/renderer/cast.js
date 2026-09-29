@@ -3,9 +3,9 @@
 // * Starts and stops casting, provides remote video controls
 module.exports = {
   init,
-  toggleMenu,
   selectDevice,
   stop,
+  load,
   play,
   pause,
   seek,
@@ -16,7 +16,6 @@ module.exports = {
 const http = require('http')
 
 const config = require('../config')
-const { CastingError } = require('./lib/errors')
 
 // Lazy load these for a ~300ms improvement in startup time
 let airplayer, chromecasts, dlnacasts
@@ -92,6 +91,7 @@ function testPlayer (type) {
 
   function open () {
     setTimeout(() => {
+      if (state.playing.location !== type + '-pending') return // stopped while connecting
       state.playing.location = type
       update()
     }, 0)
@@ -198,6 +198,7 @@ function chromecastPlayer () {
         subtitles: subtitlesUrl ? [subtitlesUrl] : [],
         autoSubtitles: !!subtitlesUrl
       }, err => {
+        if (state.playing.location !== 'chromecast-pending') return // stopped while connecting
         if (err) {
           state.playing.location = 'local'
           state.errors.push({
@@ -280,6 +281,7 @@ function airplayPlayer () {
 
   function open () {
     ret.device.play(state.server.networkURL + '/' + state.server.filePaths[state.playing.fileIndex], (err, res) => {
+      if (state.playing.location !== 'airplay-pending') return // stopped while connecting
       if (err) {
         state.playing.location = 'local'
         state.errors.push({
@@ -376,6 +378,7 @@ function dlnaPlayer (player) {
       title: config.APP_NAME + ' - ' + torrentSummary.name,
       seek: state.playing.currentTime > 10 ? state.playing.currentTime : 0
     }, err => {
+      if (state.playing.location !== 'dlna-pending') return // stopped while connecting
       if (err) {
         state.playing.location = 'local'
         state.errors.push({
@@ -438,36 +441,6 @@ function startStatusInterval () {
   }, 1000)
 }
 
-/*
- * Shows the device menu for a given cast type ('chromecast', 'airplay', etc)
- * The menu lists eg. all Chromecasts detected; the user can click one to cast.
- * If the menu was already showing for that type, hides the menu.
- */
-function toggleMenu (location) {
-  // If the menu is already showing, hide it
-  if (state.devices.castMenu && state.devices.castMenu.location === location) {
-    state.devices.castMenu = null
-    return
-  }
-
-  // Never cast to two devices at the same time
-  if (state.playing.location !== 'local') {
-    throw new CastingError(
-      `You can't connect to ${location} when already connected to another device`
-    )
-  }
-
-  // Find all cast devices of the given type
-  const player = getPlayer(location)
-  const devices = player ? player.getDevices() : []
-  if (devices.length === 0) {
-    throw new CastingError(`No ${location} devices available`)
-  }
-
-  // Show a menu
-  state.devices.castMenu = { location, devices }
-}
-
 function selectDevice (index) {
   const { location, devices } = state.devices.castMenu
 
@@ -488,7 +461,8 @@ function selectDevice (index) {
 
 // Stops casting, move video back to local screen
 function stop () {
-  const player = getPlayer()
+  // Also reach a device that is still connecting ('chromecast-pending')
+  const player = getPlayer(state.playing.location.replace(/-pending$/, ''))
   if (player) {
     player.stop(() => {
       player.device = null
@@ -498,6 +472,15 @@ function stop () {
   } else {
     stoppedCasting()
   }
+}
+
+// Plays state.playing.fileIndex on the connected device (next/previous track)
+function load () {
+  const player = getPlayer()
+  if (!player) return
+  state.playing.location += '-pending'
+  player.open()
+  update()
 }
 
 function stoppedCasting () {

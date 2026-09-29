@@ -39,7 +39,7 @@ module.exports = class CastEngine {
     } else if (action === 'start') {
       await this.start(payload, requestId)
     } else if (action === 'control') {
-      this.control(payload)
+      await this.control(payload)
     } else if (action === 'stop') {
       this.stop(payload)
     } else {
@@ -87,7 +87,7 @@ module.exports = class CastEngine {
     const server = await this.getServerInfo(torrent, payload.fileIndex)
 
     const sessionId = `cast-session-${++this.sessionCounter}`
-    this.activeSession = { sessionId, deviceId: payload.deviceId, requestId }
+    this.activeSession = { sessionId, deviceId: payload.deviceId, requestId, torrentKey: payload.torrentKey }
     this.state.saved.torrents = [{ infoHash: torrent.infoHash, name: torrent.name }]
     this.state.server = server
     this.state.playing = Object.assign(defaultPlayingState(), {
@@ -110,7 +110,7 @@ module.exports = class CastEngine {
     Cast.selectDevice(0)
   }
 
-  control (payload) {
+  async control (payload) {
     this.validateSession(payload.sessionId)
     const command = payload.command
 
@@ -132,6 +132,8 @@ module.exports = class CastEngine {
         throw new RangeError('Invalid cast rate value')
       }
       Cast.setRate(payload.value)
+    } else if (command === 'load') {
+      await this.load(payload.value)
     } else {
       throw new TypeError(`Unknown cast control: ${command}`)
     }
@@ -139,7 +141,53 @@ module.exports = class CastEngine {
 
   stop (payload) {
     this.validateSession(payload.sessionId)
+    this.activeSession.stopping = true
     Cast.stop()
+  }
+
+  // Next/previous track: serve another file of the same torrent and play it
+  // on the connected device.
+  async load (fileIndex) {
+    const session = this.activeSession
+    const torrent = this.getTorrent(session.torrentKey)
+    if (!Number.isInteger(fileIndex) || !torrent.files[fileIndex]) {
+      throw new RangeError('Invalid cast file index')
+    }
+    if (session.stopping) return
+    if (session.loading || this.state.playing.location.endsWith('-pending')) {
+      session.nextFileIndex = fileIndex
+      return
+    }
+    session.loading = true
+    try {
+      const server = await this.getServerInfo(torrent, fileIndex)
+      if (this.activeSession !== session || session.stopping) {
+        server.release?.() // stopped while the file was being prepared
+        return
+      }
+      this.state.server?.release?.()
+      this.state.server = server
+      Object.assign(this.state.playing, {
+        fileIndex,
+        currentTime: 0,
+        isPaused: false,
+        subtitles: { tracks: [], selectedIndex: -1 }
+      })
+      Cast.load()
+    } finally {
+      session.loading = false
+      this.loadQueuedFile()
+    }
+  }
+
+  loadQueuedFile () {
+    const session = this.activeSession
+    if (!session || session.stopping || session.loading ||
+        this.state.playing.location.endsWith('-pending') ||
+        session.nextFileIndex === undefined) return
+    const fileIndex = session.nextFileIndex
+    delete session.nextFileIndex
+    this.load(fileIndex).catch(err => this.emitError(session.requestId, err))
   }
 
   validateSession (sessionId) {
@@ -152,6 +200,7 @@ module.exports = class CastEngine {
     this.emitDevices()
     this.emitErrors()
     this.emitSession()
+    this.loadQueuedFile()
   }
 
   emitDevices () {

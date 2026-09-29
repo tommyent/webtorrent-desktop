@@ -100,6 +100,7 @@ module.exports = class PlaybackController {
       this.updatePlayer(
         state.playing.infoHash, Playlist.getNextIndex(state), false, (err) => {
           if (err) dispatch('error', err)
+          else if (state.playing.location !== 'local') this.cast.load(state.playing.fileIndex)
           else this.play()
         })
     }
@@ -112,6 +113,7 @@ module.exports = class PlaybackController {
       this.updatePlayer(
         state.playing.infoHash, Playlist.getPreviousIndex(state), false, (err) => {
           if (err) dispatch('error', err)
+          else if (state.playing.location !== 'local') this.cast.load(state.playing.fileIndex)
           else this.play()
         })
     }
@@ -339,9 +341,7 @@ module.exports = class PlaybackController {
 
     // Quit any external players, like Chromecast/Airplay/etc or VLC
     const state = this.state
-    if (isCasting(state)) {
-      this.cast.stop()
-    }
+    this.cast.cancel()
     if (state.playing.location === 'external') {
       api.externalPlayer.quit()
     }

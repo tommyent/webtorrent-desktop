@@ -46,6 +46,7 @@ module.exports = class CastController {
     const subtitle = subtitles.tracks[subtitles.selectedIndex]
 
     this.state.devices.castMenu = null
+    this.cancelled = false
     this.send('start', {
       isPaused: this.state.playing.isPaused,
       deviceId: device.id,
@@ -61,6 +62,27 @@ module.exports = class CastController {
   stop () {
     if (!this.sessionId) return
     this.send('stop', { sessionId: this.sessionId })
+  }
+
+  // The player is closing: end the session even if it's still connecting (or
+  // hasn't reported in yet), and ignore anything it sends afterwards.
+  cancel () {
+    this.cancelled = true
+    this.endSession(this.sessionId)
+  }
+
+  endSession (sessionId) {
+    if (!sessionId) return
+    this.endedSessionId = sessionId
+    this.sessionId = null
+    this.deviceId = null
+    this.state.devices.session = null
+    this.send('stop', { sessionId })
+  }
+
+  // Play a different file of the torrent on the connected device
+  load (fileIndex) {
+    this.control('load', fileIndex)
   }
 
   play () {
@@ -114,6 +136,12 @@ module.exports = class CastController {
 
     const device = this.getDevice(payload.deviceId)
     if (!device) return
+
+    if (payload.sessionId === this.endedSessionId) return
+    if (this.cancelled) {
+      if (payload.state !== 'stopped') this.endSession(payload.sessionId)
+      return
+    }
 
     this.sessionId = payload.state === 'stopped' ? null : payload.sessionId
     this.deviceId = payload.state === 'stopped' ? null : payload.deviceId
