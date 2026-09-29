@@ -33,7 +33,7 @@ async function main () {
       await window.webtorrent.state.save(saved)
     }), /native dialog/)
     await assert.rejects(page.evaluate(() => window.webtorrent.torrent.copyFile('/tmp/arbitrary', '/tmp/arbitrary-export')), /destination/)
-    await assert.rejects(page.evaluate(() => window.webtorrent.torrent.inspectCreateInput(['/etc'])), /native dialog/)
+    await assert.rejects(page.evaluate(dir => window.webtorrent.torrent.inspectCreateInput([dir]), require('node:os').homedir()), /native dialog/)
     await assert.rejects(page.evaluate(() => window.webtorrent.torrent.trashData('0'.repeat(40))), /known torrent/)
 
     // Dialog selection is stubbed in the main process, just as a user's native
