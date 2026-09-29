@@ -40,10 +40,13 @@ async function inspectCreateInput (inputPaths) {
   async function visit (filePath, depth) {
     if (depth > 64 || files.length >= 10000) throw new Error('Folder exceeds 64 levels or 10,000 files')
     const stat = await fs.lstat(filePath)
-    // Links are left out rather than followed, so nothing outside the chosen
-    // folder is shared. The create page lists exactly what will be included.
+    // Refuse links rather than share something outside the chosen folder or
+    // silently leave it out. Hidden entries are skipped (the create page hides them).
+    if (stat.isSymbolicLink()) throw permissions.linkError(filePath)
     if (stat.isDirectory()) {
-      for (const name of await fs.readdir(filePath)) await visit(path.join(filePath, name), depth + 1)
+      for (const name of await fs.readdir(filePath)) {
+        if (name[0] !== '.') await visit(path.join(filePath, name), depth + 1)
+      }
     } else if (stat.isFile()) {
       files.push({ name: path.basename(filePath), path: filePath, size: stat.size })
     }

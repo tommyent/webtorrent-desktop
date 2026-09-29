@@ -25,7 +25,7 @@ class CreateTorrentPage extends React.Component {
 
     // First, extract the base folder that the files are all in
     let pathPrefix = info.folderPath
-    if (!pathPrefix) {
+    if (!pathPrefix && info.files.length > 0) {
       pathPrefix = info.files.map((x) => x.path).reduce(findCommonPrefix)
       if (!pathPrefix.endsWith('/') && !pathPrefix.endsWith('\\')) {
         pathPrefix = api.path.dirname(pathPrefix)
@@ -36,7 +36,10 @@ class CreateTorrentPage extends React.Component {
     const files = info.files
       .filter((f) => !containsDots(f.path, pathPrefix))
       .map((f) => ({ name: f.name, path: f.path, size: f.size }))
-    if (files.length === 0) return (<CreateTorrentErrorPage state={state} />)
+    if (files.length === 0) {
+      this.state = { files } // render() shows the error page
+      return
+    }
 
     // Then, use the name of the base folder (or sole file, for a single file torrent)
     // as the default name. Show all files relative to the base folder.
@@ -73,6 +76,7 @@ class CreateTorrentPage extends React.Component {
 
   render () {
     const files = this.state.files
+    if (files.length === 0) return (<CreateTorrentErrorPage state={this.props.state} />)
 
     // Sanity check: show the number of files and total size
     const numFiles = files.length

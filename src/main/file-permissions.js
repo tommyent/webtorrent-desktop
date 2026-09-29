@@ -67,11 +67,11 @@ exports.validateSaved = saved => {
 
 exports.seedOptions = options => {
   if (!options || !Array.isArray(options.files) || !options.files.length) throw new TypeError('No files selected')
-  const files = options.files.map(file => {
-    exports.assertSelected(file.path, 'open')
-    const stat = fs.lstatSync(file.path)
+  const files = [...new Set(options.files.map(file => path.resolve(file.path)))].map(filePath => {
+    exports.assertSelected(filePath, 'open')
+    const stat = fs.lstatSync(filePath)
     if (!stat.isFile()) throw new Error('Only regular files can be seeded')
-    return { path: path.resolve(file.path), name: path.basename(file.path), size: stat.size }
+    return { path: filePath, name: path.basename(filePath), size: stat.size }
   })
   let root = path.dirname(files[0].path)
   for (const file of files) {
@@ -81,6 +81,7 @@ exports.seedOptions = options => {
       root = parent
     }
   }
+  if (files.length > 1 && !path.basename(root)) throw new Error('Files must share a containing folder')
   if (!Array.isArray(options.announce) || options.announce.some(url => typeof url !== 'string')) throw new TypeError('Invalid trackers')
   return {
     files,
@@ -91,3 +92,6 @@ exports.seedOptions = options => {
     private: options.private === true ? true : undefined
   }
 }
+
+exports.linkError = filePath =>
+  new Error(filePath + ' is a symbolic link. Links can\'t be shared, so remove it or choose a folder without links.')

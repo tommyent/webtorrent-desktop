@@ -217,8 +217,10 @@ module.exports = class TorrentListController {
         return
       }
 
-      // remove torrent from saved list
-      this.state.saved.torrents.splice(index, 1)
+      // remove torrent from saved list. Look it up again: another removal may
+      // have changed the list while this one waited for the Trash.
+      const current = this.state.saved.torrents.indexOf(summary)
+      if (current > -1) this.state.saved.torrents.splice(current, 1)
       dispatch('stateSave')
 
       // prevent user from going forward to a deleted torrent

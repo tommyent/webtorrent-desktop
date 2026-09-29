@@ -7,6 +7,7 @@ const permissions = require('../src/main/file-permissions')
 const dataPath = require('../src/main/data-path')
 const { load } = require('../src/main/subtitles')
 const StreamServer = require('../src/renderer/lib/stream-server')
+const createTorrent = require('../src/renderer/lib/create-torrent')
 
 async function main () {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'webtorrent-fixes-'))
@@ -49,14 +50,34 @@ async function main () {
   permissions.recordTorrent({ ...torrent, files: [{ path: 'escape/elsewhere' }] })
   assert.throws(() => dataPath.assertDataPath(path.join(link, 'elsewhere')))
 
-  // Creating a torrent from a folder skips links instead of rejecting it.
+  // Individually picked files keep their paths without granting their folders
+  // or including unselected siblings.
+  const pickedDir = path.join(dir, 'picked')
+  const picks = ['one/episode.txt', 'two/episode.txt'].map(p => path.join(pickedDir, p))
+  for (const [i, pick] of picks.entries()) {
+    await fs.mkdir(path.dirname(pick), { recursive: true })
+    await fs.writeFile(pick, 'PICK ' + i)
+    await fs.writeFile(path.join(path.dirname(pick), 'unselected.txt'), 'PRIVATE')
+  }
+  permissions.select(picks, 'open')
+  const inspectCreateInput = require('../src/main/renderer-files').inspectCreateInput
+  const picked = permissions.seedOptions({ files: await inspectCreateInput(picks), announce: [] })
+  assert.deepEqual(picked.files.map(file => file.path), picks)
+
+  // Same-named files in subfolders can't collide; selected links are refused.
   const createDir = path.join(dir, 'create')
-  await fs.mkdir(createDir)
-  await fs.writeFile(path.join(createDir, 'kept.txt'), 'x')
-  await fs.symlink(os.tmpdir(), path.join(createDir, 'outside'))
+  await fs.mkdir(path.join(createDir, 'Season1'), { recursive: true })
+  await fs.writeFile(path.join(createDir, 'episode.txt'), 'ROOT')
+  await fs.writeFile(path.join(createDir, 'Season1', 'episode.txt'), 'NESTED')
   permissions.select([createDir], 'open')
-  const createFiles = await require('../src/main/renderer-files').inspectCreateInput([createDir])
-  assert.deepEqual(createFiles.map(f => f.name), ['kept.txt'])
+  const seed = permissions.seedOptions({ files: await inspectCreateInput([createDir]), announce: [] })
+  assert.deepEqual(seed.files.map(file => file.path).sort(), [path.join(createDir, 'Season1', 'episode.txt'), path.join(createDir, 'episode.txt')].sort())
+  assert.deepEqual([seed.name, seed.path], ['create', dir])
+  const outside = path.join(createDir, 'Season1', 'outside')
+  await fs.symlink(os.tmpdir(), outside)
+  await assert.rejects(inspectCreateInput([createDir]), /symbolic link/)
+  assert.throws(() => permissions.seedOptions({ files: [{ path: outside }], announce: [] }))
+  await fs.rm(outside)
 
   // "Remove torrent and data" keeps unrelated files that share the torrent's folder.
   const show = path.join(dir, 'Show')
@@ -83,7 +104,7 @@ async function main () {
 
   let notifications = 0
   global.window = {
-    webtorrent: { path, config: { STATIC_PATH: dir }, dock: { downloadFinished () {} } },
+    webtorrent: { path, config: { STATIC_PATH: dir }, dock: { downloadFinished () {} }, torrent: {} },
     Notification: class { constructor () { notifications++ } }
   }
   const TorrentController = require('../src/renderer/controllers/torrent-controller')
@@ -97,6 +118,29 @@ async function main () {
   list.renderFileRow = (torrent, file, index) => { indices.push(index); return null }
   list.renderTorrentDetails({ files: [{ path: 'a.mp4' }, { path: '.____padding_file/0' }, { path: 'b.mp4' }] })
   assert.deepEqual(indices, [0, 2])
+
+  // Two removals that overlap remove exactly those two torrents from the list.
+  const trashWaits = []
+  Object.assign(global.window.webtorrent.torrent, {
+    stop () {},
+    trashData: () => new Promise(resolve => trashWaits.push(resolve)),
+    deleteMetadata: async () => {}
+  })
+  const TorrentListController = require('../src/renderer/controllers/torrent-list-controller')
+  const abc = ['a', 'b', 'c'].map(c => ({ infoHash: c.repeat(40), path: dir, files: [{ path: c }] }))
+  const listController = new TorrentListController({ saved: { torrents: [...abc] }, location: { clearForward () {} } })
+  const removals = [listController.deleteTorrent(abc[0].infoHash, true), listController.deleteTorrent(abc[1].infoHash, true)]
+  trashWaits.forEach(resolve => resolve())
+  await Promise.all(removals)
+  assert.deepEqual(listController.state.saved.torrents, [abc[2]])
+
+  // An empty or hidden-files-only selection shows the error page, not a crash.
+  const CreateTorrentPage = require('../build/renderer/pages/create-torrent-page')
+  const CreateTorrentErrorPage = require('../build/renderer/components/create-torrent-error-page')
+  for (const files of [[], [{ name: '.hidden', path: path.join(dir, '.hidden'), size: 1 }]]) {
+    const page = new CreateTorrentPage({ state: { location: { current: () => ({ files }) } } })
+    assert.equal(page.render().type, CreateTorrentErrorPage)
+  }
   delete global.window
 
   const createRequire = require('node:module').createRequire
@@ -110,6 +154,22 @@ async function main () {
   const { default: WebTorrent } = await import('webtorrent')
   const client = new WebTorrent({ dht: false, tracker: false, lsd: false, utp: false, natUpnp: false, natPmp: false })
   try {
+    // Hash and seed the exact files in place, including same-named selections
+    // from different folders. Verify actual store reads as well as metadata.
+    const selectedMetadata = await createTorrent(picked)
+    const selectedTorrent = await new Promise(resolve => client.add(selectedMetadata, { path: picked.path, skipVerify: true }, resolve))
+    assert.deepEqual(selectedTorrent.files.map(file => file.path), picks.map(p => path.relative(dir, p)))
+    for (const [i, selectedFile] of selectedTorrent.files.entries()) {
+      assert.equal(Buffer.from(await selectedFile.arrayBuffer()).toString(), 'PICK ' + i)
+      assert.equal(await fs.readFile(picks[i], 'utf8'), 'PICK ' + i)
+    }
+    const nestedMetadata = await createTorrent(seed)
+    const nested = await new Promise(resolve => client.add(nestedMetadata, { path: seed.path, skipVerify: true }, resolve))
+    assert.deepEqual(nested.files.map(f => f.path).sort(),
+      [path.join('create', 'Season1', 'episode.txt'), path.join('create', 'episode.txt')].sort())
+    assert.equal(await fs.readFile(path.join(createDir, 'episode.txt'), 'utf8'), 'ROOT')
+    assert.equal(await fs.readFile(path.join(createDir, 'Season1', 'episode.txt'), 'utf8'), 'NESTED')
+
     const seeded = await new Promise(resolve => client.seed(file, { announce: [] }, resolve))
     const streams = new StreamServer(client)
     const grant = await streams.grant(seeded)

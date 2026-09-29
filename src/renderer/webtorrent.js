@@ -13,6 +13,7 @@ const path = require('path')
 const config = require('../config')
 const { TorrentKeyNotFoundError } = require('./lib/errors')
 const torrentPoster = require('./lib/torrent-poster')
+const createTorrentMetadata = require('./lib/create-torrent')
 const CastEngine = require('./cast-engine')
 
 // webtorrent 3 is ESM-only; this file is CommonJS, so it loads via dynamic
@@ -172,13 +173,18 @@ function stopTorrenting (infoHash) {
 }
 
 // Create a new torrent, start seeding
-function createTorrent (torrentKey, options) {
+async function createTorrent (torrentKey, options) {
   console.log('creating torrent', torrentKey, options)
-  const paths = options.files.map((f) => f.path)
-  const torrent = client.seed(paths, options)
-  torrent.key = torrentKey
-  addTorrentEvents(torrent)
-  ipcRenderer.send('wt-new-torrent')
+  try {
+    const metadata = await createTorrentMetadata(options)
+    // The files have just been hashed in place; seed their existing store.
+    const torrent = client.add(metadata, { path: options.path, skipVerify: true })
+    torrent.key = torrentKey
+    addTorrentEvents(torrent)
+    ipcRenderer.send('wt-new-torrent')
+  } catch (err) {
+    ipcRenderer.send('wt-error', torrentKey, err.message)
+  }
 }
 
 function addTorrentEvents (torrent) {
