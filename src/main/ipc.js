@@ -22,6 +22,19 @@ function setModule (name, module) {
   modules[name] = module
 }
 
+// Main owns each open dialog's wording and what it can pick. The renderer only
+// names the purpose, and the pick is granted for that purpose alone.
+const OPEN_DIALOGS = {
+  downloadPath: { title: 'Select download directory', properties: ['openDirectory'] },
+  torrentsFolderPath: { title: 'Select folder to watch for new torrents', properties: ['openDirectory'] },
+  externalPlayerPath: { title: 'Select media player app', properties: ['openFile'] },
+  subtitles: {
+    title: 'Select a subtitles file.',
+    filters: [{ name: 'Subtitles', extensions: ['vtt', 'srt'] }],
+    properties: ['openFile']
+  }
+}
+
 function assertMainSender (event) {
   if (!windows.main.win || event.sender !== windows.main.win.webContents) {
     throw new Error('Rejected IPC from unknown renderer')
@@ -135,7 +148,7 @@ function init () {
   ipcMain.handle('loadSubtitles', (e, filePaths) => {
     assertMainSender(e)
     for (const filePath of filePaths) {
-      try { permissions.assertSelected(filePath) } catch { require('./data-path').assertDataPath(filePath) }
+      try { permissions.assertSelected(filePath, 'subtitles', 'open') } catch { require('./data-path').assertDataPath(filePath) }
     }
     return require('./subtitles').load(filePaths)
   })
@@ -249,10 +262,9 @@ function init () {
     require('./data-path').assertDataPath(filePath)
     require('./shell').showItemInFolder(filePath)
   })
-  ipcMain.handle('moveItemToTrash', (e, filePath) => {
+  ipcMain.handle('trashTorrentData', (e, infoHash) => {
     assertMainSender(e)
-    require('./data-path').assertDataPath(filePath)
-    return require('./shell').moveItemToTrash(filePath)
+    return require('./data-path').trashTorrentData(infoHash, require('./shell').moveItemToTrash)
   })
 
   /**
@@ -298,7 +310,7 @@ function init () {
 
   ipcMain.on('grantDroppedFile', (e, filePath) => {
     assertMainSender(e)
-    permissions.select([filePath])
+    permissions.select([filePath], 'open')
     e.returnValue = filePath
   })
 
@@ -314,12 +326,26 @@ function init () {
     }
   })
 
-  ipcMain.on('showOpenDialogSync', (e, opts) => {
-    e.returnValue = permissions.select(electron.dialog.showOpenDialogSync(main.win, Object(opts)))
+  ipcMain.on('showOpenDialogSync', (e, purpose, defaultPath) => {
+    const opts = Object.hasOwn(OPEN_DIALOGS, purpose) && OPEN_DIALOGS[purpose]
+    if (!opts) {
+      e.returnValue = undefined // same as Cancel
+      return
+    }
+    defaultPath = typeof defaultPath === 'string' ? defaultPath : undefined
+    e.returnValue = permissions.select(electron.dialog.showOpenDialogSync(main.win, { ...opts, defaultPath }), purpose)
   })
 
-  ipcMain.on('showSaveDialogSync', (e, opts) => {
-    e.returnValue = permissions.destination(electron.dialog.showSaveDialogSync(main.win, Object(opts)))
+  ipcMain.on('showSaveDialogSync', (e, defaultPath) => {
+    e.returnValue = permissions.destination(electron.dialog.showSaveDialogSync(main.win, {
+      title: 'Save Torrent File',
+      defaultPath: typeof defaultPath === 'string' ? defaultPath : undefined,
+      filters: [
+        { name: 'Torrent Files', extensions: ['torrent'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      buttonLabel: 'Save'
+    }))
   })
 
   ipcMain.on('openTorrentListContextMenu', (e, info) =>
@@ -378,7 +404,7 @@ function init () {
           if (name === 'wt-start-torrenting') {
             const saved = modules.stateStore.getSaved()
             const known = permissions.getTorrents().some(t => t.path === args[2])
-            if (args[2] !== saved.prefs.downloadPath && !known) permissions.assertSelected(args[2])
+            if (args[2] !== saved.prefs.downloadPath && !known) permissions.assertSelected(args[2], 'downloadPath')
           }
         } catch (err) {
           windows.main.send('error', err.message)

@@ -39,16 +39,19 @@ async function inspectCreateInput (inputPaths) {
   const files = []
   async function visit (filePath, depth) {
     if (depth > 64 || files.length >= 10000) throw new Error('Folder exceeds 64 levels or 10,000 files')
-    permissions.assertSelected(filePath)
     const stat = await fs.lstat(filePath)
-    if (stat.isSymbolicLink()) throw new Error('Symbolic links cannot be seeded')
+    // Links are left out rather than followed, so nothing outside the chosen
+    // folder is shared. The create page lists exactly what will be included.
     if (stat.isDirectory()) {
       for (const name of await fs.readdir(filePath)) await visit(path.join(filePath, name), depth + 1)
     } else if (stat.isFile()) {
       files.push({ name: path.basename(filePath), path: filePath, size: stat.size })
     }
   }
-  for (const filePath of inputPaths) await visit(filePath, 0)
+  for (const filePath of inputPaths) {
+    permissions.assertSelected(filePath, 'open')
+    await visit(filePath, 0)
+  }
   return files.sort((a, b) => a.path.localeCompare(b.path))
 }
 

@@ -34,14 +34,19 @@ async function main () {
     }), /native dialog/)
     await assert.rejects(page.evaluate(() => window.webtorrent.torrent.copyFile('/tmp/arbitrary', '/tmp/arbitrary-export')), /destination/)
     await assert.rejects(page.evaluate(() => window.webtorrent.torrent.inspectCreateInput(['/etc'])), /native dialog/)
-    await assert.rejects(page.evaluate(() => window.webtorrent.torrent.moveDataToTrash('/tmp')), /known torrent/)
+    await assert.rejects(page.evaluate(() => window.webtorrent.torrent.trashData('0'.repeat(40))), /known torrent/)
 
     // Dialog selection is stubbed in the main process, just as a user's native
     // selection would be; the renderer must receive a real permission grant.
     console.log('Audit UI: permission checks passed')
     const file = path.join(__dirname, 'resources', 'monitor-test.mp4')
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialogSync = () => [file] }, file)
-    await page.evaluate(() => window.webtorrent.dialogs.showOpen({ properties: ['openFile'] }))
+    // A pick for another purpose, here the download folder, doesn't allow seeding.
+    await page.evaluate(() => window.webtorrent.dialogs.showOpen('downloadPath'))
+    await assert.rejects(page.evaluate(file => window.webtorrent.torrent.inspectCreateInput([file]), file), /native dialog/)
+    await page.evaluate(() => window.webtorrent.dialogs.openFiles())
+    await page.waitForFunction(() => window.state.location.url() === 'create-torrent')
+    await page.evaluate(() => window.dispatch('backToList'))
     await page.evaluate(file => window.webtorrent.torrent.create(991, {
       files: [{ path: file }], name: 'monitor-test.mp4', announce: []
     }), file)
@@ -60,6 +65,9 @@ async function main () {
     assert.equal(await page.getByRole('slider', { name: 'Volume' }).inputValue(), '0')
     await page.evaluate(() => window.dispatch('backToList'))
     assert.equal(await page.evaluate(() => navigator.mediaSession.metadata), null)
+    for (const name of ['Start streaming', 'Remove torrent']) {
+      assert(await page.getByRole('button', { name, exact: true, includeHidden: true }).count() > 0, name + ' has a spoken name')
+    }
     await page.evaluate(() => window.dispatch('openTorrentAddress'))
     console.log('Audit UI: keyboard playback passed')
     const dialog = page.getByRole('dialog')

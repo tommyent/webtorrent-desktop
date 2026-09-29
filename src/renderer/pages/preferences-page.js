@@ -43,10 +43,7 @@ class PreferencesPage extends React.Component {
     return (
       <Preference>
         <PathSelector
-          dialog={{
-            title: 'Select download directory',
-            properties: ['openDirectory']
-          }}
+          purpose='downloadPath'
           onChange={this.handleDownloadPathChange}
           title='Download location'
           value={this.props.state.saved.prefs.downloadPath}
@@ -106,10 +103,7 @@ class PreferencesPage extends React.Component {
       <Preference>
         <p>{description}</p>
         <PathSelector
-          dialog={{
-            title: 'Select media player app',
-            properties: ['openFile']
-          }}
+          purpose='externalPlayerPath'
           onChange={this.handleExternalPlayerPathChange}
           title='External player'
           value={playerPath}
@@ -159,10 +153,7 @@ class PreferencesPage extends React.Component {
     return (
       <Preference>
         <PathSelector
-          dialog={{
-            title: 'Select folder to watch for new torrents',
-            properties: ['openDirectory']
-          }}
+          purpose='torrentsFolderPath'
           onChange={this.handleTorrentsFolderPathChange}
           title='Folder to watch'
           value={torrentsFolderPath}

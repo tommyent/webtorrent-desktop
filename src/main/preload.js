@@ -36,8 +36,8 @@ contextBridge.exposeInMainWorld('webtorrent', {
   dialogs: {
     openFiles: () => ipcRenderer.send('openFiles'),
     openTorrentFile: () => ipcRenderer.send('openTorrentFile'),
-    showOpen: options => ipcRenderer.sendSync('showOpenDialogSync', options),
-    showSave: options => ipcRenderer.sendSync('showSaveDialogSync', options)
+    showOpen: (purpose, defaultPath) => ipcRenderer.sendSync('showOpenDialogSync', purpose, defaultPath),
+    showSave: defaultPath => ipcRenderer.sendSync('showSaveDialogSync', defaultPath)
   },
   dock: {
     downloadFinished: filePath => ipcRenderer.send('downloadFinished', filePath),
@@ -128,7 +128,7 @@ contextBridge.exposeInMainWorld('webtorrent', {
     onWarning: callback => on('wt-warning', callback),
     onceReady: (infoHash, callback) => once('wt-ready-' + infoHash, callback),
     onceServerRunning: callback => once('wt-server-running', callback),
-    moveDataToTrash: filePath => ipcRenderer.invoke('moveItemToTrash', filePath),
+    trashData: infoHash => ipcRenderer.invoke('trashTorrentData', infoHash),
     openPath: filePath => ipcRenderer.send('openPath', filePath),
     saveFile: torrentKey => ipcRenderer.send('wt-save-torrent-file', torrentKey),
     selectFiles: (infoHash, selections) =>

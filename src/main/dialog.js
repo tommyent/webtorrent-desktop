@@ -62,7 +62,7 @@ function openFiles () {
         properties: ['openFile']
       }
   setTitle(opts.title)
-  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts))
+  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts), 'open')
   resetTitle()
   if (!Array.isArray(selectedPaths)) return
   windows.main.dispatch('onOpen', selectedPaths)
@@ -80,7 +80,7 @@ function openTorrentFile () {
     properties: ['openFile', 'multiSelections']
   }
   setTitle(opts.title)
-  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts))
+  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts), 'open')
   resetTitle()
   if (!Array.isArray(selectedPaths)) return
   selectedPaths.forEach(selectedPath => {
@@ -115,7 +115,7 @@ function resetTitle () {
  */
 function showOpenSeed (opts) {
   setTitle(opts.title)
-  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts))
+  const selectedPaths = permissions.select(dialog.showOpenDialogSync(windows.main.win, opts), 'open')
   resetTitle()
   if (!Array.isArray(selectedPaths)) return
   windows.main.dispatch('showCreateTorrent', selectedPaths)

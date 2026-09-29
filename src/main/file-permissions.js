@@ -1,7 +1,11 @@
 const fs = require('fs')
 const path = require('path')
 
-const selected = new Set()
+// Paths the user picked, kept per purpose so a pick for one job (the download
+// folder, say) never authorizes another (seeding, the external player).
+// 'open' is content the user opened into the app: seed and open dialogs,
+// drag and drop, and files passed on the command line.
+const selected = new Map()
 const destinations = new Set()
 const torrents = new Map()
 let initialPrefs = {}
@@ -14,8 +18,10 @@ exports.recordTorrent = torrent => {
   if (torrent && torrent.infoHash) torrents.set(torrent.infoHash, structuredClone(torrent))
 }
 exports.getTorrents = () => [...torrents.values()]
-exports.select = paths => {
-  for (const filePath of paths || []) selected.add(path.resolve(filePath))
+exports.select = (paths, purpose) => {
+  if (typeof purpose !== 'string') throw new TypeError('Invalid selection purpose')
+  if (!selected.has(purpose)) selected.set(purpose, new Set())
+  for (const filePath of paths || []) selected.get(purpose).add(path.resolve(filePath))
   return paths
 }
 exports.destination = filePath => {
@@ -27,10 +33,11 @@ exports.consumeDestination = filePath => {
     throw new Error('Choose an export destination in the Save dialog first')
   }
 }
-exports.assertSelected = filePath => {
+exports.assertSelected = (filePath, ...purposes) => {
   if (typeof filePath !== 'string') throw new TypeError('Invalid selected path')
   const target = fs.realpathSync(filePath)
-  const allowed = [...selected].some(root => {
+  const roots = purposes.flatMap(purpose => [...(selected.get(purpose) || [])])
+  const allowed = roots.some(root => {
     let realRoot
     try { realRoot = fs.realpathSync(root) } catch { return false }
     const relative = path.relative(realRoot, target)
@@ -43,7 +50,7 @@ exports.validateSaved = saved => {
   if (!saved || !saved.prefs || !Array.isArray(saved.torrents)) throw new TypeError('Invalid saved state')
   for (const key of ['externalPlayerPath', 'downloadPath', 'torrentsFolderPath']) {
     const value = saved.prefs[key]
-    if (value && value !== initialPrefs[key] && !selected.has(path.resolve(value))) {
+    if (value && value !== initialPrefs[key] && !selected.get(key)?.has(path.resolve(value))) {
       throw new Error('Choose ' + key + ' in a native dialog first')
     }
   }
@@ -61,7 +68,7 @@ exports.validateSaved = saved => {
 exports.seedOptions = options => {
   if (!options || !Array.isArray(options.files) || !options.files.length) throw new TypeError('No files selected')
   const files = options.files.map(file => {
-    exports.assertSelected(file.path)
+    exports.assertSelected(file.path, 'open')
     const stat = fs.lstatSync(file.path)
     if (!stat.isFile()) throw new Error('Only regular files can be seeded')
     return { path: path.resolve(file.path), name: path.basename(file.path), size: stat.size }

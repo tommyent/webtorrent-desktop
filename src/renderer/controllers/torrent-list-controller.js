@@ -276,17 +276,7 @@ module.exports = class TorrentListController {
     if (!torrentSummary) throw new TorrentKeyNotFoundError(torrentKey)
     const downloadPath = this.state.saved.prefs.downloadPath
     const newFileName = api.path.parse(torrentSummary.name).name + '.torrent'
-    const opts = {
-      title: 'Save Torrent File',
-      defaultPath: api.path.join(downloadPath, newFileName),
-      filters: [
-        { name: 'Torrent Files', extensions: ['torrent'] },
-        { name: 'All Files', extensions: ['*'] }
-      ],
-      buttonLabel: 'Save'
-    }
-
-    const savePath = api.dialogs.showSave(opts)
+    const savePath = api.dialogs.showSave(api.path.join(downloadPath, newFileName))
 
     if (!savePath) return // They clicked Cancel
     console.log('Saving torrent ' + torrentKey + ' to ' + savePath)
@@ -298,8 +288,7 @@ module.exports = class TorrentListController {
 
 // Delete all files in a torrent
 function moveItemToTrash (torrentSummary) {
-  const filePath = TorrentSummary.getFileOrFolder(torrentSummary)
-  if (filePath) return api.torrent.moveDataToTrash(filePath)
+  if (TorrentSummary.getFileOrFolder(torrentSummary)) return api.torrent.trashData(torrentSummary.infoHash)
 }
 
 async function deleteTorrentFile (torrentSummary, deleteData) {

@@ -8,11 +8,7 @@ module.exports = class SubtitlesController {
   }
 
   openSubtitles () {
-    const filenames = api.dialogs.showOpen({
-      title: 'Select a subtitles file.',
-      filters: [{ name: 'Subtitles', extensions: ['vtt', 'srt'] }],
-      properties: ['openFile']
-    })
+    const filenames = api.dialogs.showOpen('subtitles')
     if (!Array.isArray(filenames)) return
     this.addSubtitles(filenames, true)
   }

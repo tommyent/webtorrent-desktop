@@ -21,10 +21,19 @@ async function main () {
   const saved = { prefs: { externalPlayerPath: '', downloadPath: dir }, torrents: [] }
   permissions.initialize(saved)
   assert.throws(() => permissions.validateSaved({ ...saved, prefs: { ...saved.prefs, externalPlayerPath: '/bin/sh' } }))
-  assert.throws(() => permissions.assertSelected(file))
-  permissions.select([file])
-  permissions.assertSelected(file)
+  assert.throws(() => permissions.assertSelected(file, 'open'))
+  permissions.select([file], 'open')
+  permissions.assertSelected(file, 'open')
   assert.equal(permissions.seedOptions({ files: [{ path: file }], path: '/etc', announce: [] }).path, dir)
+  // A pick for one purpose authorizes nothing else: choosing the download
+  // folder doesn't allow seeding from it, and a subtitle file can't become the
+  // external player.
+  permissions.select([dir], 'downloadPath')
+  assert.throws(() => permissions.seedOptions({ files: [{ path: vtt }], announce: [] }), /native dialog/)
+  permissions.select([vtt], 'subtitles')
+  assert.throws(() => permissions.validateSaved({ ...saved, prefs: { ...saved.prefs, externalPlayerPath: vtt } }), /native dialog/)
+  permissions.select([vtt], 'externalPlayerPath')
+  permissions.validateSaved({ ...saved, prefs: { ...saved.prefs, externalPlayerPath: vtt } })
   assert.throws(() => permissions.consumeDestination(file))
   permissions.destination(file)
   permissions.consumeDestination(file)
@@ -39,6 +48,38 @@ async function main () {
   await fs.symlink(os.tmpdir(), link)
   permissions.recordTorrent({ ...torrent, files: [{ path: 'escape/elsewhere' }] })
   assert.throws(() => dataPath.assertDataPath(path.join(link, 'elsewhere')))
+
+  // Creating a torrent from a folder skips links instead of rejecting it.
+  const createDir = path.join(dir, 'create')
+  await fs.mkdir(createDir)
+  await fs.writeFile(path.join(createDir, 'kept.txt'), 'x')
+  await fs.symlink(os.tmpdir(), path.join(createDir, 'outside'))
+  permissions.select([createDir], 'open')
+  const createFiles = await require('../src/main/renderer-files').inspectCreateInput([createDir])
+  assert.deepEqual(createFiles.map(f => f.name), ['kept.txt'])
+
+  // "Remove torrent and data" keeps unrelated files that share the torrent's folder.
+  const show = path.join(dir, 'Show')
+  const showFiles = ['Show/ep1.mkv', 'Show/extras/ep2.mkv']
+  const showTorrent = { infoHash: 'c'.repeat(40), path: dir, files: showFiles.map(p => ({ path: p })) }
+  const writeShow = async () => {
+    await fs.mkdir(path.join(show, 'extras'), { recursive: true })
+    for (const p of showFiles) await fs.writeFile(path.join(dir, p), 'x')
+  }
+  permissions.recordTorrent(showTorrent)
+  const trashed = []
+  const trash = async p => { trashed.push(p); await fs.rm(p, { recursive: true }) }
+  await writeShow()
+  await fs.writeFile(path.join(show, 'notes.txt'), 'mine')
+  await dataPath.trashTorrentData(showTorrent.infoHash, trash)
+  assert.deepEqual(trashed.sort(), showFiles.map(p => path.join(dir, p)).sort())
+  assert.deepEqual(await fs.readdir(show), ['notes.txt'], 'user file kept, emptied torrent folder removed')
+  await fs.rm(path.join(show, 'notes.txt'))
+  await writeShow()
+  trashed.length = 0
+  await dataPath.trashTorrentData(showTorrent.infoHash, trash)
+  assert.deepEqual(trashed, [show], 'a folder holding only the torrent goes to the Trash as one item')
+  await assert.rejects(dataPath.trashTorrentData('d'.repeat(40), trash), /known torrent/)
 
   let notifications = 0
   global.window = {

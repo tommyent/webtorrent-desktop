@@ -247,7 +247,7 @@ function processArgv (argv) {
     }
   })
   if (torrentIds.length > 0) {
-    require('./file-permissions').select(torrentIds.filter(id => require('path').isAbsolute(id)))
+    require('./file-permissions').select(torrentIds.filter(id => require('path').isAbsolute(id)), 'open')
     windows.main.dispatch('onOpen', torrentIds)
   }
 }

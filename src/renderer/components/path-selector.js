@@ -12,9 +12,9 @@ class PathSelector extends React.Component {
   static propTypes () {
     return {
       className: PropTypes.string,
-      dialog: PropTypes.object,
       id: PropTypes.string,
       onChange: PropTypes.func,
+      purpose: PropTypes.string.isRequired,
       title: PropTypes.string.isRequired,
       value: PropTypes.string
     }
@@ -26,12 +26,7 @@ class PathSelector extends React.Component {
   }
 
   handleClick () {
-    const opts = Object.assign({
-      defaultPath: api.path.dirname(this.props.value || ''),
-      properties: ['openFile', 'openDirectory']
-    }, this.props.dialog)
-
-    const filenames = api.dialogs.showOpen(opts)
+    const filenames = api.dialogs.showOpen(this.props.purpose, api.path.dirname(this.props.value || ''))
     if (!Array.isArray(filenames)) return
     this.props.onChange && this.props.onChange(filenames[0])
   }
