@@ -4,6 +4,7 @@ const { dispatch } = require('../lib/dispatcher')
 const { TorrentKeyNotFoundError } = require('../lib/errors')
 const sound = require('../lib/sound')
 const TorrentSummary = require('../lib/torrent-summary')
+const { isMagnetLink } = require('../lib/torrent-player')
 
 const instantIoRegex = /^(https:\/\/)?instant\.io\/#/
 
@@ -33,6 +34,14 @@ module.exports = class TorrentListController {
 
     const torrentKey = this.state.nextTorrentKey++
     const path = this.state.saved.prefs.downloadPath
+    let name
+    if (isMagnetLink(torrentId)) {
+      try { name = new URL(torrentId).searchParams.get('dn') || undefined } catch {}
+    }
+
+    // Acknowledge the add immediately, even while the hidden engine starts.
+    // Unparsed rows are already excluded from saved state.
+    this.state.saved.torrents.unshift({ torrentKey, status: 'new', name })
 
     api.torrent.start(torrentKey, torrentId, path)
 

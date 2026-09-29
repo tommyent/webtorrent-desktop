@@ -127,6 +127,32 @@ async function main () {
     deleteMetadata: async () => {}
   })
   const TorrentListController = require('../src/renderer/controllers/torrent-list-controller')
+  // Show an addition before the engine replies, then reuse that row on parse.
+  // Failed and duplicate additions must not leave a pending row behind.
+  const pendingState = { nextTorrentKey: 1, saved: { prefs: { downloadPath: dir }, torrents: [] } }
+  const pendingList = new TorrentListController(pendingState)
+  const pendingController = new TorrentController(pendingState)
+  global.window.webtorrent.torrent.start = () => {}
+  const magnet = 'magnet:?xt=urn:btih:' + 'e'.repeat(40) + '&dn=First%20torrent'
+  pendingList.addTorrent(magnet)
+  const pending = pendingState.saved.torrents[0]
+  assert(pending, 'addition is visible while the engine starts')
+  assert.equal(pending.name, 'First torrent')
+  assert.equal(pending.infoHash, undefined)
+  pendingController.torrentParsed(1, 'e'.repeat(40), magnet)
+  assert.equal(pendingState.saved.torrents[0], pending, 'parsed event updates the same row')
+  assert.equal(pendingState.saved.torrents.length, 1)
+  pendingList.addTorrent(magnet)
+  pendingController.torrentError(2, 'Cannot add duplicate torrent ' + 'e'.repeat(40))
+  assert.deepEqual(pendingState.saved.torrents, [pending], 'active duplicate leaves the original alone')
+  pendingList.addTorrent('not a torrent')
+  pendingController.torrentError(3, 'Invalid torrent identifier')
+  assert.deepEqual(pendingState.saved.torrents, [pending], 'invalid addition is removed')
+  pending.status = 'paused'
+  pendingList.addTorrent(magnet)
+  pendingController.torrentParsed(4, 'e'.repeat(40), magnet)
+  assert.deepEqual(pendingState.saved.torrents, [pending], 'paused duplicate leaves no pending row')
+
   const abc = ['a', 'b', 'c'].map(c => ({ infoHash: c.repeat(40), path: dir, files: [{ path: c }] }))
   const listController = new TorrentListController({ saved: { torrents: [...abc] }, location: { clearForward () {} } })
   const removals = [listController.deleteTorrent(abc[0].infoHash, true), listController.deleteTorrent(abc[1].infoHash, true)]

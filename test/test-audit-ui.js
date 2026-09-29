@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const crypto = require('node:crypto')
 const path = require('node:path')
 const { _electron: electron } = require('playwright')
 
@@ -27,6 +28,33 @@ async function main () {
     console.log('Audit UI: windows ready')
     await page.locator('.header').waitFor()
     await engine.evaluate(() => window.testOfflineMode())
+
+    // Browser links must show a row before a cold/busy engine acknowledges them.
+    const browserHash = crypto.randomBytes(20).toString('hex')
+    const browserMagnet = `magnet:?xt=urn:btih:${browserHash}&dn=First%20browser%20torrent`
+    await app.evaluate(({ app, BrowserWindow }, magnet) => {
+      const contents = BrowserWindow.getAllWindows()
+        .find(win => win.webContents.getTitle() === 'WebTorrent Hidden Window').webContents
+      const send = contents.send.bind(contents)
+      contents.send = (channel, ...args) => {
+        if (channel === 'wt-start-torrenting' && args[1] === magnet) {
+          global.releaseBrowserMagnet = () => {
+            contents.send = send
+            send(channel, ...args)
+          }
+        } else send(channel, ...args)
+      }
+      app.emit('open-url', { preventDefault () {} }, magnet)
+    }, browserMagnet)
+    await page.getByRole('button', { name: 'First browser torrent', exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => window.state.saved.torrents[0].infoHash), undefined,
+      'browser addition is visible before the engine replies')
+    await app.evaluate(() => global.releaseBrowserMagnet())
+    await page.waitForFunction(hash => window.state.saved.torrents.some(t => t.infoHash === hash), browserHash)
+    assert.equal(await page.getByRole('button', { name: 'First browser torrent', exact: true }).count(), 1)
+    await page.evaluate(hash => window.dispatch('deleteTorrent', hash, false), browserHash)
+    await page.waitForFunction(hash => !window.state.saved.torrents.some(t => t.infoHash === hash), browserHash)
+    console.log('Audit UI: browser magnet appears before engine reply')
     await assert.rejects(page.evaluate(async () => {
       const saved = await window.webtorrent.state.load()
       saved.prefs.externalPlayerPath = '/bin/sh'

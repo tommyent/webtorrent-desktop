@@ -14,20 +14,23 @@ module.exports = class TorrentController {
     console.log('got infohash for %s torrent %s',
       torrentSummary ? 'existing' : 'new', torrentKey)
 
-    if (!torrentSummary) {
+    if (!torrentSummary || !torrentSummary.infoHash) {
       const torrents = this.state.saved.torrents
 
       // Check if an existing (non-active) torrent has the same info hash
-      if (torrents.find((t) => t.infoHash === infoHash)) {
+      if (torrents.some(t => t !== torrentSummary && t.infoHash === infoHash)) {
+        if (torrentSummary) torrents.splice(torrents.indexOf(torrentSummary), 1)
         api.torrent.stop(infoHash)
         return dispatch('error', 'Cannot add duplicate torrent')
       }
 
-      torrentSummary = {
-        torrentKey,
-        status: 'new'
+      if (!torrentSummary) {
+        torrentSummary = {
+          torrentKey,
+          status: 'new'
+        }
+        torrents.unshift(torrentSummary)
       }
-      torrents.unshift(torrentSummary)
       sound.play('ADD')
     }
 
@@ -50,8 +53,13 @@ module.exports = class TorrentController {
 
     const torrentSummary = this.getTorrentSummary(torrentKey)
     if (torrentSummary) {
-      console.log('Pausing torrent %s due to error: %s', torrentSummary.infoHash, message)
-      torrentSummary.status = 'paused'
+      if (!torrentSummary.infoHash) {
+        const torrents = this.state.saved.torrents
+        torrents.splice(torrents.indexOf(torrentSummary), 1)
+      } else {
+        console.log('Pausing torrent %s due to error: %s', torrentSummary.infoHash, message)
+        torrentSummary.status = 'paused'
+      }
       dispatch('update')
     }
   }
