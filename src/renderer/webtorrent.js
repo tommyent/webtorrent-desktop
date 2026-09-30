@@ -194,13 +194,26 @@ function addTorrentEvents (torrent) {
     ipcRenderer.send('wt-warning', torrent.key, err.message))
   torrent.on('error', (err) =>
     ipcRenderer.send('wt-error', torrent.key, err.message))
-  torrent.on('infoHash', () =>
-    ipcRenderer.send('wt-parsed', torrent.key, torrent.infoHash, torrent.magnetURI))
+  torrent.on('infoHash', () => {
+    // No info dictionary yet means a magnet link, a bare info hash or a
+    // hash-only file: whether the torrent is private isn't known until its
+    // metadata arrives.
+    torrent.startedWithoutInfo = !torrent.info
+    ipcRenderer.send('wt-parsed', torrent.key, torrent.infoHash, torrent.magnetURI)
+  })
   torrent.on('metadata', torrentMetadata)
   torrent.on('ready', torrentReady)
   torrent.on('done', torrentDone)
 
   function torrentMetadata () {
+    // Stop a magnet that turns out to be private: WebTorrent can't switch DHT
+    // and peer exchange off for a running torrent, and a private torrent should
+    // come from its tracker's .torrent file. (WebTorrent supports destroying a
+    // torrent from its 'metadata' handler.)
+    if (torrent.private && torrent.startedWithoutInfo) {
+      torrent.destroy()
+      return ipcRenderer.send('wt-private-magnet', torrent.key)
+    }
     const info = getTorrentInfo(torrent)
     ipcRenderer.send('wt-metadata', torrent.key, info)
 

@@ -333,6 +333,7 @@ function setupIpc () {
   const tc = controllers.torrent()
   api.torrent.onParsed((...args) => tc.torrentParsed(...args))
   api.torrent.onMetadata((...args) => tc.torrentMetadata(...args))
+  api.torrent.onPrivateMagnet((...args) => tc.torrentPrivateMagnet(...args))
   api.torrent.onDone((...args) => tc.torrentDone(...args))
   api.torrent.onDone(() => controllers.torrentList().resumePausedTorrents())
   api.torrent.onWarning((...args) => tc.torrentWarning(...args))

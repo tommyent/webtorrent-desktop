@@ -56,6 +56,57 @@ async function main () {
     await page.evaluate(hash => window.dispatch('deleteTorrent', hash, false), browserHash)
     await page.waitForFunction(hash => !window.state.saved.torrents.some(t => t.infoHash === hash), browserHash)
     console.log('Audit UI: browser magnet appears before engine reply')
+
+    // Private metadata reached from a magnet link or a hash-only .torrent file
+    // stops the torrent and removes its row; a public magnet and the real
+    // private .torrent file still work. Metadata is delivered offline through
+    // WebTorrent's own _onMetadata, as a peer would deliver it.
+    const fixtureDir = path.join(require('./config').TEST_DIR, 'private-fixtures') // reset with the test data
+    await fs.mkdir(fixtureDir, { recursive: true })
+    const { default: createTorrentFile } = await import('create-torrent')
+    const makeTorrent = (name, isPrivate) => new Promise((resolve, reject) => {
+      const data = Buffer.from('fixture ' + name)
+      data.name = name
+      createTorrentFile(data, { name, private: isPrivate, announce: [] },
+        (err, torrent) => err ? reject(err) : resolve(Buffer.from(torrent)))
+    })
+    const privateTorrent = await makeTorrent('private.txt', true)
+    const publicTorrent = await makeTorrent('public.txt', false)
+    const [privateHash, publicHash] = [privateTorrent, publicTorrent].map(t => require('parse-torrent')(t).infoHash)
+    const deliverMetadata = (hash, torrent) => engine.evaluate(([hash, bytes]) =>
+      window.client.torrents.find(t => t.infoHash === hash)._onMetadata(Buffer.from(bytes)), [hash, [...torrent]])
+    const waitForRow = (hash, present) => page.waitForFunction(([hash, present]) =>
+      window.state.saved.torrents.some(t => t.infoHash === hash) === present, [hash, present])
+    // A working torrent is ready in the engine and has its .torrent cached.
+    const waitForWorking = async hash => {
+      await engine.waitForFunction(hash => window.client.torrents.find(t => t.infoHash === hash)?.ready, hash)
+      await page.waitForFunction(hash => window.state.saved.torrents.some(t => t.infoHash === hash && t.torrentFileName), hash)
+    }
+    const hashOnlyFile = path.join(fixtureDir, 'hash-only.torrent')
+    await fs.writeFile(hashOnlyFile, Buffer.from(privateHash, 'hex'))
+    for (const torrentId of [`magnet:?xt=urn:btih:${privateHash}&dn=Private`, hashOnlyFile]) {
+      await page.evaluate(id => window.dispatch('addTorrent', id), torrentId)
+      await waitForRow(privateHash, true)
+      await deliverMetadata(privateHash, privateTorrent)
+      await waitForRow(privateHash, false)
+      await page.getByText('This is a private torrent').first().waitFor()
+      assert.equal(await engine.evaluate(hash => window.client.torrents.some(t => t.infoHash === hash), privateHash), false)
+      await page.evaluate(() => { window.state.errors = []; window.dispatch('update') })
+    }
+    await page.evaluate(hash => window.dispatch('addTorrent', `magnet:?xt=urn:btih:${hash}&dn=Public`), publicHash)
+    await waitForRow(publicHash, true)
+    await deliverMetadata(publicHash, publicTorrent)
+    await waitForWorking(publicHash)
+    const privateTorrentFile = path.join(fixtureDir, 'private.torrent')
+    await fs.writeFile(privateTorrentFile, privateTorrent)
+    await page.evaluate(file => window.dispatch('addTorrent', file), privateTorrentFile)
+    await waitForWorking(privateHash)
+    for (const hash of [publicHash, privateHash]) {
+      await page.evaluate(hash => window.dispatch('deleteTorrent', hash, false), hash)
+      await waitForRow(hash, false)
+    }
+    assert.deepEqual(await page.evaluate(() => window.state.errors), [])
+    console.log('Audit UI: private magnet and hash-only file stopped; public magnet and private .torrent work')
     await assert.rejects(page.evaluate(async () => {
       const saved = await window.webtorrent.state.load()
       saved.prefs.externalPlayerPath = '/bin/sh'

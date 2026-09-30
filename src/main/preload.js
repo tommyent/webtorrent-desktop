@@ -120,6 +120,7 @@ contextBridge.exposeInMainWorld('webtorrent', {
     onFileModtimes: callback => on('wt-file-modtimes', callback),
     onFileSaved: callback => on('wt-file-saved', callback),
     onMetadata: callback => on('wt-metadata', callback),
+    onPrivateMagnet: callback => on('wt-private-magnet', callback),
     onParsed: callback => on('wt-parsed', callback),
     onPoster: callback => on('wt-poster', callback),
     onProgress: callback => on('wt-progress', callback),

@@ -64,6 +64,19 @@ module.exports = class TorrentController {
     }
   }
 
+  // The engine stopped a magnet that turned out to be private. Remove its row
+  // so the tracker's .torrent file can be added without a duplicate.
+  torrentPrivateMagnet (torrentKey) {
+    const torrentSummary = this.getTorrentSummary(torrentKey)
+    if (torrentSummary) {
+      const torrents = this.state.saved.torrents
+      torrents.splice(torrents.indexOf(torrentSummary), 1)
+      dispatch('stateSave')
+    }
+    dispatch('error', 'This is a private torrent, so WebTorrent won\'t download it from a magnet link. ' +
+      'Open the .torrent file from your tracker instead.')
+  }
+
   torrentMetadata (torrentKey, torrentInfo) {
     // Summarize torrent
     const torrentSummary = this.getTorrentSummary(torrentKey)
@@ -148,6 +161,7 @@ module.exports = class TorrentController {
   torrentFileSaved (torrentKey, torrentFileName) {
     console.log('torrent file saved %s: %s', torrentKey, torrentFileName)
     const torrentSummary = this.getTorrentSummary(torrentKey)
+    if (!torrentSummary) return // removed before its .torrent file was cached
     torrentSummary.torrentFileName = torrentFileName
     dispatch('stateSave')
   }
