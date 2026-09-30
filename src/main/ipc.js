@@ -402,6 +402,7 @@ function init () {
         try {
           if (name === 'wt-create-torrent') args[1] = permissions.seedOptions(args[1])
           if (name === 'wt-start-torrenting') {
+            args[1] = require('./torrent-id')(args[1])
             const saved = modules.stateStore.getSaved()
             const known = permissions.getTorrents().some(t => t.path === args[2])
             if (args[2] !== saved.prefs.downloadPath && !known) permissions.assertSelected(args[2], 'downloadPath')

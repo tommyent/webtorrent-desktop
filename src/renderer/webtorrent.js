@@ -62,7 +62,9 @@ const CLIENT_OPTIONS = config.IS_TEST
       natUpnp: false,
       natPmp: false
     }
-  : { peerId: PEER_ID }
+  // Local peer discovery is off: WebTorrent starts it even for private
+  // torrents (only DHT checks), which multicasts their info hash on the LAN.
+  : { peerId: PEER_ID, lsd: false }
 
 // Connect to the WebTorrent and BitTorrent networks. WebTorrent Desktop is a hybrid
 // client, as explained here: https://webtorrent.io/faq
@@ -252,6 +254,8 @@ function getTorrentFileInfo (file) {
 // than re-fetching it from peers using ut_metadata.
 function saveTorrentFile (torrentKey) {
   const torrent = getTorrent(torrentKey)
+  // The info hash names the file, so it must be a real one.
+  if (!/^[0-9a-f]{40}$/.test(torrent.infoHash)) return
   const torrentPath = path.join(config.TORRENT_PATH, torrent.infoHash + '.torrent')
 
   fs.access(torrentPath, fs.constants.R_OK, err => {

@@ -84,6 +84,13 @@ function init () {
       getSaved: () => state.saved,
       save: saved => {
         require('./file-permissions').validateSaved(saved)
+        // Startup migrations act on the saved version and on these legacy
+        // fields (copying files they name), so the UI can't set them.
+        saved.version = config.APP_VERSION
+        for (const torrent of saved.torrents) {
+          delete torrent.torrentPath
+          delete torrent.posterURL
+        }
         state.saved = saved
         const nextSave = savePromise.then(() => State.save(saved))
         savePromise = nextSave.catch(() => {})

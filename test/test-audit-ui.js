@@ -64,6 +64,49 @@ async function main () {
     await assert.rejects(page.evaluate(() => window.webtorrent.torrent.copyFile('/tmp/arbitrary', '/tmp/arbitrary-export')), /destination/)
     await assert.rejects(page.evaluate(dir => window.webtorrent.torrent.inspectCreateInput([dir]), require('node:os').homedir()), /native dialog/)
     await assert.rejects(page.evaluate(() => window.webtorrent.torrent.trashData('0'.repeat(40))), /known torrent/)
+    // Main relays only string torrent IDs and strips magnet parameters that
+    // WebTorrent would copy onto the torrent (a parsed object, or &path=, could
+    // replace the download folder). These test starts are held back from the engine.
+    await app.evaluate(({ BrowserWindow }) => {
+      const contents = BrowserWindow.getAllWindows()
+        .find(win => win.webContents.getTitle() === 'WebTorrent Hidden Window').webContents
+      const send = contents.send.bind(contents)
+      global.heldStarts = []
+      contents.send = (channel, ...args) => {
+        if (channel === 'wt-start-torrenting' && [992, 993, 994].includes(args[0])) global.heldStarts.push(args)
+        else send(channel, ...args)
+      }
+      global.restoreEngineSend = () => { contents.send = send }
+    })
+    const downloadPath = await page.evaluate(() => window.state.saved.prefs.downloadPath)
+    const escapeHash = 'f'.repeat(40)
+    await page.evaluate(([downloadPath, hash]) => window.webtorrent.torrent.start(992,
+      { infoHash: hash, name: 'escape', path: '/tmp', files: [{ path: '../escape', length: 1 }] }, downloadPath),
+    [downloadPath, escapeHash])
+    for (const [key, scheme] of [[993, 'magnet:'], [994, 'stream-magnet:']]) {
+      await page.evaluate(([key, uri, downloadPath]) => window.webtorrent.torrent.start(key, uri, downloadPath),
+        [key, `${scheme}?xt=urn:btih:${escapeHash}&dn=escape&path=/tmp&on=x`, downloadPath])
+    }
+    let held = []
+    for (let i = 0; i < 50 && !held.some(args => args[0] === 994); i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      held = await app.evaluate(() => global.heldStarts)
+    }
+    await app.evaluate(() => global.restoreEngineSend())
+    assert.deepEqual(held.map(args => args[0]), [993, 994], 'the object torrent ID never reaches the engine')
+    for (const args of held) assert.equal(args[1], `magnet:?xt=urn:btih:${escapeHash}&dn=escape`)
+    // The UI can't set what startup migrations act on: the saved version stays
+    // the running app's and legacy path fields are dropped.
+    const resaved = await page.evaluate(async () => {
+      const saved = await window.webtorrent.state.load()
+      saved.version = '0.6.0'
+      saved.torrents.push({ infoHash: 'e'.repeat(40), torrentPath: '/etc/hosts', posterURL: '/etc/hosts.png' })
+      await window.webtorrent.state.save(saved)
+      return window.webtorrent.state.load()
+    })
+    assert.equal(resaved.version, require('../package.json').version)
+    assert.deepEqual(resaved.torrents.filter(t => t.torrentPath || t.posterURL), [])
+    await page.evaluate(() => window.webtorrent.state.save(window.state.saved))
 
     // Dialog selection is stubbed in the main process, just as a user's native
     // selection would be; the renderer must receive a real permission grant.

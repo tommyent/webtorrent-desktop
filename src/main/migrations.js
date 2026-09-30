@@ -1,7 +1,10 @@
 /* eslint-disable camelcase */
 
 module.exports = {
-  run
+  run,
+  // For regression tests of the file operations below
+  migrate_0_7_0,
+  migrate_0_17_2
 }
 
 const fs = require('fs')
@@ -53,6 +56,8 @@ function migrate_0_7_0 (saved) {
 
   saved.torrents.forEach(ts => {
     const infoHash = ts.infoHash
+    // The hash names the copy destination, so only a real one may.
+    const validHash = /^[0-9a-f]{40}$/i.test(infoHash)
 
     // Replace torrentPath with torrentFileName
     // There are a number of cases to handle here:
@@ -61,7 +66,7 @@ function migrate_0_7_0 (saved) {
     // * Then, paths computed at runtime for default torrents, eg 'sintel.torrent'
     // * Finally, now we're getting rid of torrentPath altogether
     let src, dst
-    if (ts.torrentPath) {
+    if (ts.torrentPath && validHash) {
       if (path.isAbsolute(ts.torrentPath) || ts.torrentPath.startsWith('..')) {
         src = ts.torrentPath
       } else {
@@ -77,7 +82,7 @@ function migrate_0_7_0 (saved) {
     }
 
     // Replace posterURL with posterFileName
-    if (ts.posterURL) {
+    if (ts.posterURL && validHash) {
       const extension = path.extname(ts.posterURL)
       src = path.isAbsolute(ts.posterURL)
         ? ts.posterURL
@@ -196,21 +201,28 @@ function migrate_0_17_2 (saved) {
   ts.infoHash = NEW_HASH
   ts.magnetURI = ts.magnetURI.replace(OLD_HASH, NEW_HASH)
 
+  // Saved file names must stay inside the app's poster and torrent folders.
+  const plainName = name => typeof name === 'string' && name === path.basename(name) && !['', '.', '..'].includes(name)
+
   try {
-    fs.renameSync(
-      path.join(config.POSTER_PATH, ts.posterFileName),
-      path.join(config.POSTER_PATH, NEW_HASH + '.jpg')
-    )
+    if (plainName(ts.posterFileName)) {
+      fs.renameSync(
+        path.join(config.POSTER_PATH, ts.posterFileName),
+        path.join(config.POSTER_PATH, NEW_HASH + '.jpg')
+      )
+    }
   } catch (err) {}
   ts.posterFileName = NEW_HASH + '.jpg'
 
   // Retries match rimraf's old Windows EPERM behavior for files in the
   // user's config dir.
-  fs.rmSync(path.join(config.TORRENT_PATH, ts.torrentFileName), {
-    force: true,
-    maxRetries: 10,
-    retryDelay: 100
-  })
+  if (plainName(ts.torrentFileName)) {
+    fs.rmSync(path.join(config.TORRENT_PATH, ts.torrentFileName), {
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100
+    })
+  }
   copyFileSync(
     path.join(config.STATIC_PATH, 'wiredCd.torrent'),
     path.join(config.TORRENT_PATH, NEW_HASH + '.torrent')

@@ -8,11 +8,66 @@ const dataPath = require('../src/main/data-path')
 const { load } = require('../src/main/subtitles')
 const StreamServer = require('../src/renderer/lib/stream-server')
 const createTorrent = require('../src/renderer/lib/create-torrent')
+const checkTorrentId = require('../src/main/torrent-id')
+const migrations = require('../src/main/migrations')
 
 async function main () {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'webtorrent-fixes-'))
   const file = path.join(dir, 'sample.srt')
   await fs.writeFile(file, '1\n00:00:01,000 --> 00:00:02,000\nHello\n')
+
+  // Torrent IDs: strings only, and magnets keep only the parameters the magnet
+  // parser understands (any other key would become a torrent property, such as path).
+  const magnetHash = 'c'.repeat(40)
+  const hostileMagnet = `magnet:?xt=urn:btih:${magnetHash}&dn=Show&path=/tmp/elsewhere&on=x&so=0-4000000000&tr=udp%3A%2F%2Ft.example%3A1337`
+  assert.throws(() => checkTorrentId({ infoHash: magnetHash, path: '/tmp/elsewhere' }), /Invalid torrent ID/)
+  for (const scheme of ['magnet:', 'stream-magnet:']) {
+    assert.equal(checkTorrentId(hostileMagnet.replace('magnet:', scheme)),
+      `magnet:?xt=urn:btih:${magnetHash}&dn=Show&tr=udp%3A%2F%2Ft.example%3A1337`, scheme)
+  }
+  // The info hash later names a file: only real v1 hashes (40 hex or 32 base32).
+  assert.throws(() => checkTorrentId('magnet:?xt=urn:btih:../' + 'a'.repeat(37)), /Invalid magnet link/)
+  assert.throws(() => checkTorrentId('magnet:?xt=urn:btih:' + 'g'.repeat(40)), /Invalid magnet link/)
+  assert.throws(() => checkTorrentId('magnet:?xt=urn:btih:' + 'g'.repeat(40) + '\nx'), /Invalid magnet link/)
+  assert.throws(() => checkTorrentId('magnet:?xt=urn:btih:' + magnetHash + '\n'), /Invalid magnet link/)
+  const base32Magnet = 'magnet:?xt=urn:btih:' + 'a'.repeat(32)
+  assert.equal(checkTorrentId(base32Magnet), base32Magnet)
+  const hybridMagnet = `magnet:?xt=urn:btmh:1220${'b'.repeat(64)}&xt=urn:btih:${magnetHash}`
+  assert.equal(checkTorrentId(hybridMagnet), hybridMagnet)
+  assert.equal(checkTorrentId(file), file)
+
+  // Old migrations copy only to destinations named by a real info hash, and
+  // rename or delete only plain file names. fs is stubbed: nothing on disk changes.
+  const fsSync = require('node:fs')
+  const realFs = { copyFileSync: fsSync.copyFileSync, renameSync: fsSync.renameSync, rmSync: fsSync.rmSync }
+  const fsCalls = []
+  Object.assign(fsSync, {
+    copyFileSync: (src, dst) => fsCalls.push(['copy', dst]),
+    renameSync: src => fsCalls.push(['rename', src]),
+    rmSync: target => fsCalls.push(['rm', target])
+  })
+  try {
+    migrations.migrate_0_7_0({
+      torrents: [
+        { infoHash: '../../../../tmp/escape', torrentPath: '/etc/hosts', posterURL: '/etc/hosts.plist' },
+        { infoHash: 'a'.repeat(40), torrentPath: '/tmp/legacy.torrent' }
+      ]
+    })
+    assert.deepEqual(fsCalls.map(([op, target]) => [op, path.basename(target)]), [['copy', 'a'.repeat(40) + '.torrent']])
+    const wiredCd = name => ({
+      torrents: [{ infoHash: '3ba219a8634bf7bae3d848192b2da75ae995589d', files: [], magnetURI: '', posterFileName: name, torrentFileName: name }]
+    })
+    for (const name of ['../../escape', '', '.', '..']) {
+      fsCalls.length = 0
+      migrations.migrate_0_17_2(wiredCd(name))
+      assert.deepEqual(fsCalls.map(([op]) => op), ['copy'], `no rename or delete for ${JSON.stringify(name)}`)
+    }
+    fsCalls.length = 0
+    migrations.migrate_0_17_2(wiredCd('old.torrent'))
+    assert.deepEqual(fsCalls.map(([op]) => op), ['rename', 'rm', 'copy'], 'plain names still migrate')
+  } finally {
+    Object.assign(fsSync, realFs)
+  }
   const [subtitle] = await load([file])
   assert.match(Buffer.from(subtitle.buffer.split(',')[1], 'base64').toString(), /WEBVTT/)
   const vtt = path.join(dir, 'sample.vtt')
@@ -223,6 +278,23 @@ async function main () {
       [path.join('create', 'Season1', 'episode.txt'), path.join('create', 'episode.txt')].sort())
     assert.equal(await fs.readFile(path.join(createDir, 'episode.txt'), 'utf8'), 'ROOT')
     assert.equal(await fs.readFile(path.join(createDir, 'Season1', 'episode.txt'), 'utf8'), 'NESTED')
+
+    // A private torrent announces only to the trackers the user entered, even
+    // with a global tracker list set, and still verifies against its files.
+    globalThis.WEBTORRENT_ANNOUNCE = ['wss://global.example']
+    const privateMetadata = await createTorrent({ ...seed, private: true, announce: ['udp://private.example:1337'] })
+    delete globalThis.WEBTORRENT_ANNOUNCE
+    const privateParsed = require('parse-torrent')(Buffer.from(privateMetadata))
+    assert.deepEqual([privateParsed.announce, privateParsed.private], [['udp://private.example:1337'], true])
+    const privateTorrent = await new Promise(resolve => client.add(privateMetadata, { path: seed.path }, resolve))
+    assert.equal(privateTorrent.progress, 1, 'every piece verifies against the files on disk')
+
+    // A cleaned magnet keeps the approved download folder and a working torrent.
+    const magnetTorrent = client.add(checkTorrentId(hostileMagnet), { path: dir })
+    await new Promise(resolve => magnetTorrent.once('infoHash', resolve))
+    assert.equal(magnetTorrent.path, dir)
+    assert.equal(typeof magnetTorrent.on, 'function')
+    magnetTorrent.destroy()
 
     const seeded = await new Promise(resolve => client.seed(file, { announce: [] }, resolve))
     const streams = new StreamServer(client)
