@@ -6,6 +6,8 @@ process.env.NODE_ENV = 'test'
 
 const calls = []
 const pathChecks = []
+const checked = []
+const dispatched = []
 global.window = {
   webtorrent: {
     path,
@@ -13,7 +15,7 @@ global.window = {
     torrent: {
       start: torrentKey => calls.push(['start', torrentKey]),
       stop: torrentKey => calls.push(['stop', torrentKey]),
-      checkPath: () => new Promise(resolve => pathChecks.push(resolve)),
+      checkPath: checkedPath => new Promise(resolve => { checked.push(checkedPath); pathChecks.push(resolve) }),
       deleteMetadata: async () => {},
       trashData: async infoHash => { if (infoHash === 'b'.repeat(40)) throw new Error('could not trash') }
     }
@@ -23,7 +25,10 @@ const { setDispatch } = require('../src/renderer/lib/dispatcher')
 const TorrentListController = require('../src/renderer/controllers/torrent-list-controller')
 
 const errors = []
-setDispatch((action, ...args) => { if (action === 'error') errors.push(args[0]) })
+setDispatch((action, ...args) => {
+  dispatched.push(action)
+  if (action === 'error') errors.push(args[0])
+})
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
 async function main () {
@@ -39,6 +44,7 @@ async function main () {
   const state = {
     saved: { prefs: {}, torrents: [row(1, 'a'), row(2, 'b'), { torrentKey: 3, status: 'new', name: 'unparsed' }] },
     removalSelection: [],
+    playing: { infoHash: null },
     location: { url: () => 'home', clearForward () {} }
   }
   const list = new TorrentListController(state)
@@ -85,12 +91,28 @@ async function main () {
   assert(!calls.some(([action, key]) => action === 'start' && key === 2), 'Remove cancels a pending start')
   state.saved.torrents.splice(1, 0, Object.assign(b, { status: 'paused' }))
 
-  // A missing folder turns the switch back off.
+  // A missing folder turns the switch back off. An unfinished torrent may have no
+  // files yet, so only its download folder is checked; a background resume never
+  // closes the player of another torrent.
   list.toggleTorrent(1)
+  assert.equal(checked.at(-1), '/downloads', 'unfinished: download folder')
   pathChecks.shift()(false)
   await settle()
   assert.equal(a.status, 'paused')
   assert.equal(a.error, 'path-missing')
+  assert(!dispatched.includes('backToList'), 'player left alone')
+  delete a.error
+
+  // A completed torrent's own file must still be there; if it's the one playing, leave the player.
+  a.completed = true
+  state.playing.infoHash = a.infoHash
+  list.toggleTorrent(1)
+  assert.equal(checked.at(-1), path.join('/downloads', 'a.mp4'), 'completed: its file')
+  pathChecks.shift()(false)
+  await settle()
+  assert(dispatched.includes('backToList'))
+  Object.assign(state.playing, { infoHash: null })
+  delete a.completed
   delete a.error
 
   // Check rows, including one that hasn't loaded yet, and remove them with their data.

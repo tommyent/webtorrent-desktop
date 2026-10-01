@@ -108,16 +108,19 @@ module.exports = class TorrentListController {
     // New torrent: metadata not yet received
     if (!fileOrFolder) return start()
 
-    // Existing torrent: check that the path is still there
+    // Existing torrent: check that its data is still there. Files appear only
+    // once data arrives, so an unfinished torrent just needs its download folder
+    // (an unplugged drive shows up there too).
     const request = {}
     pendingStarts.set(s, request)
-    api.torrent.checkPath(fileOrFolder)
+    api.torrent.checkPath(s.completed ?? !!s.fileModtimes ? fileOrFolder : s.path)
       .then(exists => {
         if (pendingStarts.get(s) !== request) return // paused, removed, or restarted since
         if (exists) return start()
         s.error = 'path-missing'
         s.status = 'paused'
-        dispatch('backToList')
+        // Leave the player only if it is showing this torrent (resumes run in the background)
+        if (this.state.playing.infoHash === s.infoHash) dispatch('backToList')
       })
 
     function start () {
