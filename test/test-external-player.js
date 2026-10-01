@@ -40,4 +40,16 @@ assert.deepEqual(spawned.at(-1), { command: '/usr/local/bin/mpv', args: [url], p
 spawned.at(-1).proc.emit('close', 1)
 assert.deepEqual(dispatched, ['backToList', 'externalPlayerNotFound'])
 
-console.log('External player regressions passed: Mac apps through open -W -a, binaries direct, exit codes')
+// No player chosen: IINA becomes the default only on a Mac with IINA and without VLC.
+const { defaultExternalPlayer } = require('../src/main/state')
+const installed = apps => file => apps.includes(file)
+const chosen = (prefs, apps, platform = 'darwin') => {
+  defaultExternalPlayer(prefs, installed(apps), platform)
+  return prefs.externalPlayerPath
+}
+assert.equal(chosen({ externalPlayerPath: '' }, ['/Applications/IINA.app']), '/Applications/IINA.app')
+assert.equal(chosen({ externalPlayerPath: '' }, ['/Applications/IINA.app', '/Applications/VLC.app']), '')
+assert.equal(chosen({ externalPlayerPath: '/Applications/mpv.app' }, ['/Applications/IINA.app']), '/Applications/mpv.app')
+assert.equal(chosen({ externalPlayerPath: '' }, ['/Applications/IINA.app'], 'linux'), '')
+
+console.log('External player regressions passed: Mac apps through open -W -a, binaries direct, exit codes, IINA default')

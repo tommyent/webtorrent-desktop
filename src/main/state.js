@@ -7,7 +7,8 @@ appConfig.filePath = path.join(config.CONFIG_PATH, 'config.json')
 
 module.exports = {
   load,
-  save
+  save,
+  defaultExternalPlayer
 }
 
 async function load () {
@@ -36,7 +37,19 @@ async function load () {
   const state = { saved }
   require('./migrations').run(state)
   if (!saved.prefs.globalTrackers) saved.prefs.globalTrackers = []
+  // Tests keep the same prefs on every machine, whatever players it has
+  if (!config.IS_TEST) defaultExternalPlayer(saved.prefs)
   return saved
+}
+
+// With no player chosen, files the built-in player can't handle (e.g. Dolby
+// audio) go to VLC. If VLC isn't installed but IINA is, use IINA instead.
+// Set here, at load, so it counts as the trusted starting value.
+function defaultExternalPlayer (prefs, exists = require('fs').existsSync, platform = process.platform) {
+  if (platform !== 'darwin' || prefs.externalPlayerPath) return
+  if (!exists('/Applications/VLC.app') && exists('/Applications/IINA.app')) {
+    prefs.externalPlayerPath = '/Applications/IINA.app'
+  }
 }
 
 async function save (saved) {
