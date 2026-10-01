@@ -11,6 +11,7 @@ module.exports = class CastEngine {
     this.previousDevices = ''
     this.deviceRefs = new Map()
     this.sessionCounter = 0
+    this.startAttempts = 0
     this.activeSession = null
     this.errorCount = 0
     this.state = {
@@ -60,7 +61,6 @@ module.exports = class CastEngine {
 
   async start (payload, requestId) {
     if (!this.initialized) throw new Error('Casting discovery is not running')
-    if (this.activeSession) throw new Error('A cast session is already active')
     const invalidSubtitle = payload.subtitle != null &&
       (!payload.subtitle || typeof payload.subtitle.buffer !== 'string' ||
        !payload.subtitle.buffer.startsWith('data:text/vtt;base64,'))
@@ -84,7 +84,13 @@ module.exports = class CastEngine {
 
     const torrent = this.getTorrent(payload.torrentKey)
     if (!torrent.files[payload.fileIndex]) throw new RangeError('Invalid cast file index')
+    // A newer start (the player was closed and a device picked again) supersedes this one
+    const attempt = ++this.startAttempts
     const server = await this.getServerInfo(torrent, payload.fileIndex)
+    if (attempt !== this.startAttempts) return server.release?.()
+    // The UI only starts a cast from local playback, so a session still active
+    // here belongs to a start it abandoned.
+    if (this.activeSession) this.stop({ sessionId: this.activeSession.sessionId })
 
     const sessionId = `cast-session-${++this.sessionCounter}`
     this.activeSession = { sessionId, deviceId: payload.deviceId, requestId, torrentKey: payload.torrentKey }
@@ -140,7 +146,8 @@ module.exports = class CastEngine {
   }
 
   stop (payload) {
-    this.validateSession(payload.sessionId)
+    // Stopping a session that already ended (or was replaced) is a no-op
+    if (!this.activeSession || payload.sessionId !== this.activeSession.sessionId) return
     this.activeSession.stopping = true
     Cast.stop()
   }
@@ -258,6 +265,7 @@ module.exports = class CastEngine {
           : 'playing'
     const payload = {
       sessionId: this.activeSession.sessionId,
+      requestId: this.activeSession.requestId,
       deviceId: this.activeSession.deviceId,
       state,
       currentTime: this.state.playing.currentTime,

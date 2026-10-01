@@ -1,16 +1,19 @@
 // Casting regressions, using cast.js's built-in test devices (NODE_ENV=test):
-// closing the player while a device connects ends that session, and
-// next/previous track plays the new file on the device.
+// closing the player while a device connects ends that session,
+// next/previous track plays the new file on the device, and a device that
+// fails or never answers can't leave the player stuck connecting.
 const assert = require('node:assert/strict')
 const path = require('node:path')
+const { mock } = require('node:test')
 process.env.NODE_ENV = 'test'
 
 let engine
+let held = null // when set, commands wait here, as if IPC delivery were slow
 global.window = {
   webtorrent: {
     path,
     config: { STATIC_PATH: __dirname },
-    cast: { command: envelope => engine.handle(envelope) },
+    cast: { command: envelope => held ? held.push(envelope) : engine.handle(envelope) },
     player: { close () {}, update () {} },
     torrent: { stopServer () {} },
     window: { setAspectRatio () {} }
@@ -29,6 +32,7 @@ async function main () {
     playing: State.getDefaultPlayState(),
     saved: { prefs: {}, torrents: [summary] },
     devices: {},
+    errors: [],
     window: {},
     getPlayingTorrentSummary: () => summary
   }
@@ -107,8 +111,118 @@ async function main () {
   assert.equal(released.at(-1), 0, 'prepared stream released after stop')
   assert.equal(state.playing.location, 'local')
   assert.equal(engine.activeSession, null)
+  player.open = open
+  engine.getServerInfo = getServerInfo
+  const castTo = () => {
+    Object.assign(state.playing, { infoHash: 'movie', fileIndex: 0 })
+    cast.toggleMenu('chromecast')
+    cast.selectDevice(0)
+  }
 
-  console.log('Cast regressions passed: close while connecting, next track, queued track changes, stop')
+  // A device that never answers times out back to local playback, and a retry works.
+  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] })
+  player.open = () => {}
+  castTo()
+  for (let i = 0; i < 5; i++) await new Promise(setImmediate)
+  assert.equal(state.playing.location, 'chromecast-pending')
+  mock.timers.tick(20000)
+  mock.timers.reset()
+  assert.equal(state.playing.location, 'local', 'connect timeout returns to local playback')
+  assert.match(state.errors.at(-1).message, /Could not connect to chromecast-1/)
+  assert.equal(engine.activeSession, null)
+  player.open = open
+  castTo()
+  await settle()
+  assert.equal(state.playing.location, 'chromecast', 'retry after a timeout connects')
+
+  // Stopping doesn't wait for a device that never confirms it.
+  player.stop = () => {}
+  cast.stop()
+  await settle()
+  assert.equal(state.playing.location, 'local', 'stop finishes without the device')
+  assert.equal(engine.activeSession, null)
+
+  // A device that answers synchronously must find the attempt already pending.
+  player.open = () => {
+    if (engine.state.playing.location !== 'chromecast-pending') return
+    engine.state.playing.location = 'chromecast'
+    engine.onCastUpdate()
+  }
+  castTo()
+  await settle()
+  assert.equal(state.playing.location, 'chromecast', 'synchronous connect is not dropped')
+  cast.stop()
+  await settle()
+
+  // Two starts racing over stream preparation leave one session, not two.
+  player.open = open
+  const before = released.length
+  const errorCount = state.errors.length
+  castTo()
+  castTo()
+  await settle()
+  assert.equal(released.length, before + 1, 'the superseded start releases its stream')
+  assert.equal(state.errors.length, errorCount)
+  assert.equal(state.playing.location, 'chromecast')
+  cast.stop()
+  await settle()
+  assert.equal(engine.activeSession, null)
+
+  // Cast A, Back while A's stream is prepared, cast B: A finishing first must not take over.
+  const preparing2 = []
+  engine.getServerInfo = (torrent, index) => new Promise(resolve => preparing2.push(() => resolve(getServerInfo(torrent, index))))
+  castTo()
+  await settle()
+  playback.closePlayer()
+  Object.assign(state.playing, { infoHash: 'movie', fileIndex: 1 })
+  cast.toggleMenu('chromecast')
+  cast.selectDevice(0)
+  await settle()
+  preparing2[0]()
+  await settle()
+  preparing2[1]()
+  await settle()
+  assert.equal(engine.state.playing.fileIndex, 1, 'B plays, not the abandoned A')
+  assert.equal(released.at(-1), 0, "A's stream released")
+  assert.equal(state.playing.location, 'chromecast')
+  assert.equal(state.errors.length, errorCount)
+  engine.getServerInfo = getServerInfo
+  cast.stop()
+  await settle()
+  assert.equal(engine.activeSession, null)
+
+  // Same, but B's command reaches the engine only after A finished and connected.
+  const preparing3 = []
+  engine.getServerInfo = (torrent, index) => new Promise(resolve => preparing3.push(() => resolve(getServerInfo(torrent, index))))
+  castTo()
+  await settle()
+  playback.closePlayer()
+  held = []
+  Object.assign(state.playing, { infoHash: 'movie', fileIndex: 1 })
+  cast.toggleMenu('chromecast')
+  cast.selectDevice(0)
+  preparing3[0]()
+  await settle()
+  const delivered = held
+  held = null
+  assert.deepEqual(delivered.map(envelope => envelope.action), ['start', 'stop'], "B's start, then the UI ending A")
+  const releasedBefore = released.length
+  engine.handle(delivered[0])
+  await settle()
+  preparing3[1]()
+  await settle()
+  assert.deepEqual(released.slice(releasedBefore), [0], 'A ended before B took over')
+  engine.handle(delivered[1])
+  await settle()
+  assert.equal(engine.state.playing.fileIndex, 1, 'B plays after a late delivery too')
+  assert.equal(state.playing.location, 'chromecast')
+  assert.equal(state.errors.length, errorCount, 'no errors')
+  engine.getServerInfo = getServerInfo
+  cast.stop()
+  await settle()
+  assert.equal(engine.activeSession, null)
+
+  console.log('Cast regressions passed: close while connecting, next track, queued track changes, stop, connect timeout, unanswered stop, synchronous connect, racing starts, recast after Back, recast with late delivery')
 }
 main().catch(err => {
   if (engine?.activeSession) engine.stop({ sessionId: engine.activeSession.sessionId })

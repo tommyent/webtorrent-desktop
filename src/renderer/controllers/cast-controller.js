@@ -46,8 +46,8 @@ module.exports = class CastController {
     const subtitle = subtitles.tracks[subtitles.selectedIndex]
 
     this.state.devices.castMenu = null
-    this.cancelled = false
-    this.send('start', {
+    // Only sessions from this start are accepted (see onSession)
+    this.startRequestId = this.send('start', {
       isPaused: this.state.playing.isPaused,
       deviceId: device.id,
       torrentKey: torrent.torrentKey,
@@ -67,7 +67,7 @@ module.exports = class CastController {
   // The player is closing: end the session even if it's still connecting (or
   // hasn't reported in yet), and ignore anything it sends afterwards.
   cancel () {
-    this.cancelled = true
+    this.startRequestId = null
     this.endSession(this.sessionId)
   }
 
@@ -138,7 +138,8 @@ module.exports = class CastController {
     if (!device) return
 
     if (payload.sessionId === this.endedSessionId) return
-    if (this.cancelled) {
+    // A session from a start the user abandoned (closed the player, or picked again)
+    if (payload.requestId !== this.startRequestId) {
       if (payload.state !== 'stopped') this.endSession(payload.sessionId)
       return
     }
@@ -191,11 +192,9 @@ module.exports = class CastController {
   }
 
   send (action, payload) {
-    api.cast.command({
-      requestId: `cast-${Date.now()}-${++this.requestCounter}`,
-      action,
-      payload
-    })
+    const requestId = `cast-${Date.now()}-${++this.requestCounter}`
+    api.cast.command({ requestId, action, payload })
+    return requestId
   }
 
   getDevices (protocol) {

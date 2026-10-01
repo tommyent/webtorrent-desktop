@@ -29,6 +29,11 @@ let update
 // setInterval() for updating cast status
 let statusInterval = null
 
+// A device that never answers (a stalled connection) would otherwise leave the
+// player on the Connecting... screen for good.
+const CONNECT_TIMEOUT = 20000
+let connectTimer = null
+
 // Start looking for cast devices on the local network
 function init (appState, callback) {
   state = appState
@@ -435,43 +440,62 @@ function handleStatus (err, status) {
 
 // Start polling cast device state, whenever we're connected
 function startStatusInterval () {
+  clearInterval(statusInterval)
   statusInterval = setInterval(() => {
     const player = getPlayer()
     if (player) player.status()
+    else if (state.playing.location === 'local') clearInterval(statusInterval)
   }, 1000)
+}
+
+function watchConnect () {
+  clearTimeout(connectTimer)
+  connectTimer = setTimeout(() => {
+    if (!state.playing.location.endsWith('-pending')) return
+    state.errors.push({
+      time: new Date().getTime(),
+      message: 'Could not connect to ' + state.playing.castName + '. Make sure it is on and on the same network.'
+    })
+    stop()
+  }, CONNECT_TIMEOUT)
 }
 
 function selectDevice (index) {
   const { location, devices } = state.devices.castMenu
 
-  // Start casting
+  // Show the Connecting... screen. Set it before open(), which can answer
+  // synchronously and must find the attempt pending.
   const player = getPlayer(location)
   player.device = devices[index]
-  player.open()
-
-  // Poll the casting device's status every few seconds
-  startStatusInterval()
-
-  // Show the Connecting... screen
   state.devices.castMenu = null
   state.playing.castName = devices[index].name
   state.playing.location = location + '-pending'
+
+  // Start casting
+  player.open()
+  watchConnect()
+
+  // Poll the casting device's status every few seconds
+  startStatusInterval()
   update()
 }
 
 // Stops casting, move video back to local screen
 function stop () {
+  clearTimeout(connectTimer)
+  clearInterval(statusInterval)
   // Also reach a device that is still connecting ('chromecast-pending')
   const player = getPlayer(state.playing.location.replace(/-pending$/, ''))
   if (player) {
-    player.stop(() => {
-      player.device = null
-      stoppedCasting()
-    })
-    clearInterval(statusInterval)
-  } else {
-    stoppedCasting()
+    // Don't wait for the device's answer: one that lost its connection never sends it.
+    try {
+      player.stop(() => {})
+    } catch (err) {
+      console.log('error stopping cast device: %o', err)
+    }
+    player.device = null
   }
+  stoppedCasting()
 }
 
 // Plays state.playing.fileIndex on the connected device (next/previous track)
@@ -480,6 +504,7 @@ function load () {
   if (!player) return
   state.playing.location += '-pending'
   player.open()
+  watchConnect()
   update()
 }
 
