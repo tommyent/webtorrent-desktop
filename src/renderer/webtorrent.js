@@ -76,6 +76,9 @@ let client = null
 // client's lifetime.
 let serverReady = null
 let playbackGrant = null
+// Bumped by every start/stop request, so a torrent that becomes ready after its
+// player was closed or replaced doesn't publish a server.
+let serverRequest = 0
 let castEngine = null
 
 // Used for diffing, so we only send progress updates when necessary
@@ -94,22 +97,25 @@ function init () {
     setGlobalTrackers(globalTrackers))
   ipcRenderer.on('wt-start-torrenting', (e, torrentKey, torrentID, path, fileModtimes, selections) =>
     startTorrenting(torrentKey, torrentID, path, fileModtimes, selections))
-  ipcRenderer.on('wt-stop-torrenting', (e, infoHash) =>
-    stopTorrenting(infoHash))
+  ipcRenderer.on('wt-stop-torrenting', (e, torrentKey) =>
+    stopTorrenting(torrentKey))
   ipcRenderer.on('wt-create-torrent', (e, torrentKey, options) =>
     createTorrent(torrentKey, options))
   ipcRenderer.on('wt-save-torrent-file', (e, torrentKey) =>
     saveTorrentFile(torrentKey))
   ipcRenderer.on('wt-generate-torrent-poster', (e, torrentKey) =>
     generateTorrentPoster(torrentKey))
-  ipcRenderer.on('wt-get-audio-metadata', (e, infoHash, index) =>
-    getAudioMetadata(infoHash, index))
-  ipcRenderer.on('wt-start-server', (e, infoHash) =>
-    startServer(infoHash))
+  ipcRenderer.on('wt-get-audio-metadata', (e, torrentKey, index) =>
+    getAudioMetadata(torrentKey, index))
+  ipcRenderer.on('wt-start-server', (e, torrentKey, requestId) =>
+    startServer(torrentKey, requestId))
   ipcRenderer.on('wt-stop-server', () =>
     stopServer())
-  ipcRenderer.on('wt-select-files', (e, infoHash, selections) =>
-    selectFiles(infoHash, selections))
+  ipcRenderer.on('wt-select-files', (e, torrentKey, selections) => {
+    const torrent = getTorrentByKey(torrentKey)
+    if (!torrent) return onError(new Error('selectFiles: missing torrent ' + torrentKey))
+    whenReady(torrent, () => selectFiles(torrent, selections))
+  })
   ipcRenderer.on('wt-cast-command', (e, envelope) =>
     getCastEngine().handle(envelope))
 
@@ -164,13 +170,20 @@ function startTorrenting (torrentKey, torrentID, path, fileModtimes, selections)
 
 // webtorrent 3 made client.get() async; our callers always pass a plain
 // infohash, so a sync lookup over client.torrents is equivalent.
-function getTorrentByInfoHash (infoHash) {
-  return client.torrents.find(t => t.infoHash === infoHash) || null
+// Torrents are looked up by key: one added from a .torrent file or magnet only
+// learns its infoHash after an async parse.
+function getTorrentByKey (torrentKey) {
+  return client.torrents.find(t => t.key === torrentKey) || null
 }
 
-function stopTorrenting (infoHash) {
-  console.log('--- STOP TORRENTING: ', infoHash)
-  const torrent = getTorrentByInfoHash(infoHash)
+function whenReady (torrent, fn) {
+  if (torrent.ready) fn()
+  else torrent.once('ready', fn)
+}
+
+function stopTorrenting (torrentKey) {
+  console.log('--- STOP TORRENTING: ', torrentKey)
+  const torrent = getTorrentByKey(torrentKey)
   if (torrent) torrent.destroy()
 }
 
@@ -367,11 +380,11 @@ function getTorrentProgress () {
   }
 }
 
-function startServer (infoHash) {
-  const torrent = getTorrentByInfoHash(infoHash)
+function startServer (torrentKey, requestId) {
+  const request = ++serverRequest
+  const torrent = getTorrentByKey(torrentKey)
   if (!torrent) return onError(new Error('Unknown torrent'))
-  if (torrent.ready) startServerFromReadyTorrent(torrent)
-  else torrent.once('ready', () => startServerFromReadyTorrent(torrent))
+  whenReady(torrent, () => startServerFromReadyTorrent(torrent, request, requestId))
 }
 
 function ensureServer () {
@@ -381,29 +394,41 @@ function ensureServer () {
   return serverReady
 }
 
-function startServerFromReadyTorrent (torrent) {
-  getServerInfo(torrent).then(info => {
-    ipcRenderer.send('wt-server-running', info)
-    ipcRenderer.send('wt-server-' + torrent.infoHash, info)
-  }).catch(onError)
+// requestId is the UI's playback id, echoed so it can drop replies for an earlier playback
+async function startServerFromReadyTorrent (torrent, request, requestId) {
+  if (request !== serverRequest) return
+  releaseGrant()
+  try {
+    const grant = await ensureServer().grant(torrent)
+    if (request !== serverRequest) return grant.release()
+    playbackGrant = grant
+    const { release, baseURL, token, ...info } = grant
+    ipcRenderer.send('wt-server-running', { ...info, requestId })
+  } catch (err) {
+    onError(err)
+  }
 }
 
-async function getServerInfo (torrent) {
-  stopServer()
-  playbackGrant = await ensureServer().grant(torrent)
-  const { release, baseURL, token, ...info } = playbackGrant
-  return info
-}
-
-function stopServer () {
+function releaseGrant () {
   if (playbackGrant) playbackGrant.release()
   playbackGrant = null
 }
 
+function stopServer () {
+  serverRequest++
+  releaseGrant()
+}
+
 console.log('Initializing...')
 
-function getAudioMetadata (infoHash, index) {
-  const torrent = getTorrentByInfoHash(infoHash)
+function getAudioMetadata (torrentKey, index) {
+  const torrent = getTorrentByKey(torrentKey)
+  if (!torrent) return onError(new Error('Unknown torrent'))
+  whenReady(torrent, () => sendAudioMetadata(torrent, index))
+}
+
+function sendAudioMetadata (torrent, index) {
+  const infoHash = torrent.infoHash
   const file = torrent.files[index]
 
   // Set initial matadata to display the filename first.
@@ -444,18 +469,7 @@ function getAudioMetadata (infoHash, index) {
     )
 }
 
-function selectFiles (torrentOrInfoHash, selections) {
-  // Get the torrent object
-  let torrent
-  if (typeof torrentOrInfoHash === 'string') {
-    torrent = getTorrentByInfoHash(torrentOrInfoHash)
-  } else {
-    torrent = torrentOrInfoHash
-  }
-  if (!torrent) {
-    throw new Error('selectFiles: missing torrent ' + torrentOrInfoHash)
-  }
-
+function selectFiles (torrent, selections) {
   // Selections not specified?
   // Load all files. We still need to replace the default whole-torrent
   // selection with individual selections for each file, so we can

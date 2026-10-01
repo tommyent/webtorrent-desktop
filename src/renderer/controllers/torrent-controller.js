@@ -20,7 +20,7 @@ module.exports = class TorrentController {
       // Check if an existing (non-active) torrent has the same info hash
       if (torrents.some(t => t !== torrentSummary && t.infoHash === infoHash)) {
         if (torrentSummary) torrents.splice(torrents.indexOf(torrentSummary), 1)
-        api.torrent.stop(infoHash)
+        api.torrent.stop(torrentKey)
         return dispatch('error', 'Cannot add duplicate torrent')
       }
 
@@ -180,7 +180,10 @@ module.exports = class TorrentController {
   }
 
   torrentServerRunning (serverInfo) {
+    // A reply can arrive after its playback was closed or replaced
+    if (serverInfo.requestId !== this.state.playing.serverRequestId) return
     this.state.server = serverInfo
+    this.state.playing.isReady = true
   }
 
   // Gets a torrent summary {name, infoHash, status} from state.saved.torrents

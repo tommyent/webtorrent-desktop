@@ -104,7 +104,7 @@
     "test-integration": "npm run build && node ./test && node test/test-paste-privacy.js && node test/test-audit-ui.js",
     "update-authors": "./bin/update-authors.sh",
     "watch": "nodemon --exec \"npm run start\" --ext js,css --ignore build/ --ignore dist/",
-    "test-unit": "node test/test-audit-fixes.js && node test/test-select-poster.js && node test/test-cast.js"
+    "test-unit": "node test/test-audit-fixes.js && node test/test-select-poster.js && node test/test-cast.js && node test/test-playback-server.js"
   },
   "renovate": {
     "extends": [

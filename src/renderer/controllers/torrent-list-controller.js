@@ -141,7 +141,7 @@ module.exports = class TorrentListController {
       if (torrentSummary.status === 'downloading' ||
           torrentSummary.status === 'seeding') {
         torrentSummary.status = 'paused'
-        api.torrent.stop(torrentSummary.infoHash)
+        api.torrent.stop(torrentSummary.torrentKey)
       }
     })
     sound.play('DISABLE')
@@ -159,7 +159,7 @@ module.exports = class TorrentListController {
 
   pauseTorrent (torrentSummary, playSound) {
     torrentSummary.status = 'paused'
-    api.torrent.stop(torrentSummary.infoHash)
+    api.torrent.stop(torrentSummary.torrentKey)
 
     if (playSound) sound.play('DISABLE')
   }
@@ -196,7 +196,7 @@ module.exports = class TorrentListController {
 
     // Let the WebTorrent process know to start or stop fetching that file
     if (torrentSummary.status !== 'paused') {
-      api.torrent.selectFiles(infoHash, torrentSummary.selections)
+      api.torrent.selectFiles(torrentSummary.torrentKey, torrentSummary.selections)
     }
   }
 
@@ -303,7 +303,7 @@ function moveItemToTrash (torrentSummary) {
 }
 
 async function deleteTorrentFile (torrentSummary, deleteData) {
-  api.torrent.stop(torrentSummary.infoHash)
+  api.torrent.stop(torrentSummary.torrentKey)
 
   if (deleteData) await moveItemToTrash(torrentSummary)
 

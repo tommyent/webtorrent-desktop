@@ -224,6 +224,33 @@ async function main () {
     await page.waitForFunction(hash => !window.state.saved.torrents.some(t => t.infoHash === hash), browserHash)
     console.log('Audit UI: completed-first sorting and persistence passed')
 
+    // Playing right after a (re)start: the engine must wait for the async .torrent parse,
+    // and a server that becomes ready after its player closed must not be published.
+    const summary = await page.evaluate(hash => window.state.saved.torrents.find(t => t.infoHash === hash), hash)
+    const torrentFile = path.join(require('./config').TEST_DIR, 'Torrents', summary.torrentFileName)
+    const restart = (stopFirst) => engine.evaluate(([key, file, dir, stopFirst]) => new Promise(resolve => {
+      const { ipcRenderer } = require('electron')
+      const send = ipcRenderer.send
+      const timer = setTimeout(() => { ipcRenderer.send = send; resolve(null) }, 3000)
+      ipcRenderer.send = (channel, ...args) => {
+        if (channel === 'wt-server-running') { clearTimeout(timer); ipcRenderer.send = send; resolve(args[0].localURL) }
+        return send.call(ipcRenderer, channel, ...args)
+      }
+      ipcRenderer.emit('wt-start-torrenting', {}, key, file, dir)
+      ipcRenderer.emit('wt-start-server', {}, key)
+      if (stopFirst) ipcRenderer.emit('wt-stop-server', {})
+    }), [summary.torrentKey, torrentFile, summary.path, stopFirst])
+    const stopEngineTorrent = () => engine.evaluate(key => {
+      require('electron').ipcRenderer.emit('wt-stop-torrenting', {}, key)
+      return window.client.torrents.some(t => t.key === key)
+    }, summary.torrentKey)
+    assert.equal(await restart(true), null, 'a closed player gets no server')
+    assert.equal(await stopEngineTorrent(), false)
+    assert.match(await restart(false), new RegExp('/webtorrent/' + hash + '$'))
+    await engine.evaluate(() => require('electron').ipcRenderer.emit('wt-stop-server', {}))
+    assert.equal(await stopEngineTorrent(), false)
+    console.log('Audit UI: play before the torrent is parsed passed')
+
     await page.evaluate(() => window.dispatch('openTorrentAddress'))
     console.log('Audit UI: keyboard playback passed')
     const dialog = page.getByRole('dialog')

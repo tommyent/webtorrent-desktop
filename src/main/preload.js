@@ -111,8 +111,8 @@ contextBridge.exposeInMainWorld('webtorrent', {
     deleteMetadata: (torrentFileName, posterFileName) =>
       ipcRenderer.invoke('deleteTorrentMetadata', torrentFileName, posterFileName),
     generatePoster: torrentKey => ipcRenderer.send('wt-generate-torrent-poster', torrentKey),
-    getAudioMetadata: (infoHash, index) =>
-      ipcRenderer.send('wt-get-audio-metadata', infoHash, index),
+    getAudioMetadata: (torrentKey, index) =>
+      ipcRenderer.send('wt-get-audio-metadata', torrentKey, index),
     inspectCreateInput: inputPaths => ipcRenderer.invoke('inspectCreateInput', inputPaths),
     onAudioMetadata: callback => on('wt-audio-metadata', callback),
     onDone: callback => on('wt-done', callback),
@@ -132,12 +132,12 @@ contextBridge.exposeInMainWorld('webtorrent', {
     trashData: infoHash => ipcRenderer.invoke('trashTorrentData', infoHash),
     openPath: filePath => ipcRenderer.send('openPath', filePath),
     saveFile: torrentKey => ipcRenderer.send('wt-save-torrent-file', torrentKey),
-    selectFiles: (infoHash, selections) =>
-      ipcRenderer.send('wt-select-files', infoHash, selections),
+    selectFiles: (torrentKey, selections) =>
+      ipcRenderer.send('wt-select-files', torrentKey, selections),
     setGlobalTrackers: trackers => ipcRenderer.send('wt-set-global-trackers', trackers),
     start: (...args) => ipcRenderer.send('wt-start-torrenting', ...args),
-    startServer: infoHash => ipcRenderer.send('wt-start-server', infoHash),
-    stop: infoHash => ipcRenderer.send('wt-stop-torrenting', infoHash),
+    startServer: (torrentKey, requestId) => ipcRenderer.send('wt-start-server', torrentKey, requestId),
+    stop: torrentKey => ipcRenderer.send('wt-stop-torrenting', torrentKey),
     stopServer: () => ipcRenderer.send('wt-stop-server')
   },
   window: {

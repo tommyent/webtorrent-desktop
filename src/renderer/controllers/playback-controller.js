@@ -10,6 +10,8 @@ const State = require('../lib/state')
 
 // Controls playback of torrents and files within torrents
 // both local (<video>,<audio>,external player) and remote (cast)
+let serverRequests = 0
+
 module.exports = class PlaybackController {
   constructor (state, config, update, cast) {
     this.state = state
@@ -249,6 +251,9 @@ module.exports = class PlaybackController {
   // Starts WebTorrent server for media streaming
   startServer (torrentSummary) {
     const state = this.state
+    // Identifies this playback, so a late ready event or server reply for an
+    // earlier one (closed with Back, or replaced) is ignored.
+    const requestId = state.playing.serverRequestId = ++serverRequests
 
     if (torrentSummary.status === 'paused') {
       dispatch('startTorrentingSummary', torrentSummary.torrentKey)
@@ -258,8 +263,8 @@ module.exports = class PlaybackController {
     }
 
     function onTorrentReady () {
-      api.torrent.startServer(torrentSummary.infoHash)
-      api.torrent.onceServerRunning(() => { state.playing.isReady = true })
+      if (state.playing.serverRequestId !== requestId) return
+      api.torrent.startServer(torrentSummary.torrentKey, requestId)
     }
   }
 
@@ -307,7 +312,7 @@ module.exports = class PlaybackController {
 
     function getAudioMetadata () {
       if (state.playing.type === 'audio') {
-        api.torrent.getAudioMetadata(torrentSummary.infoHash, index)
+        api.torrent.getAudioMetadata(torrentSummary.torrentKey, index)
       }
     }
 

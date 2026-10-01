@@ -48,9 +48,14 @@ module.exports = class MediaController {
 
   openExternalPlayer () {
     const state = this.state
-    state.playing.location = 'external'
+    const playing = state.playing
+    playing.location = 'external'
 
     const onServerRunning = () => {
+      // Stop waiting once this playback was closed (Back) or replaced
+      if (state.playing !== playing || playing.location !== 'external') return
+      // torrentServerRunning() runs first and only keeps the reply for this playback
+      if (state.server == null) return api.torrent.onceServerRunning(onServerRunning)
       state.playing.isReady = true
 
       const mediaURL = Playlist.getCurrentLocalURL(state)
