@@ -17,6 +17,7 @@ function once (channel, listener) {
 contextBridge.exposeInMainWorld('webtorrent', {
   config,
   app: {
+    restartAfterEngineFailure: () => ipcRenderer.send('restartAfterEngineFailure'),
     ready: () => ipcRenderer.send('ipcReady'),
     getWindowInfo: () => ipcRenderer.sendSync('getWindowInfo'),
     onDispatch: callback => on('dispatch', callback),

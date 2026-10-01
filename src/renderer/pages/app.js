@@ -29,6 +29,20 @@ class App extends React.Component {
   render () {
     const state = this.props.state
 
+    if (state.engineStopped) {
+      const errors = state.errors.filter(error => error.time >= state.engineStoppedAt)
+      return (
+        <div className='app engine-stopped' role='alert'>
+          <h2>The torrent engine stopped</h2>
+          <p>Downloads and playback are unavailable. Restart WebTorrent to continue.</p>
+          {errors.length > 0 && <p>{errors[errors.length - 1].message}</p>}
+          <button type='button' className='btn raised' onClick={() => dispatch('restartAfterEngineFailure')}>
+            Restart WebTorrent
+          </button>
+        </div>
+      )
+    }
+
     // Hide player controls while playing video, if the mouse stays still for a while
     // Never hide the controls when:
     // * The mouse is over the controls or we're scrubbing (see CSS)

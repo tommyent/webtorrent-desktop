@@ -47,12 +47,31 @@ function assertMainSender (event) {
 }
 
 function init () {
+  app.on('webtorrentStopped', () => { messageQueueMainToWebTorrent.length = 0 })
+  let restartScheduled = false
+  const relaunch = () => app.relaunch()
+  app.on('quitCancelled', () => {
+    app.removeListener('will-quit', relaunch)
+    restartScheduled = false
+  })
+  ipcMain.on('restartAfterEngineFailure', e => {
+    assertMainSender(e)
+    if (!windows.webtorrent.failed || app.isQuitting) return
+    // Relaunch only after the normal state-save shutdown succeeds. A failed
+    // save can be retried without scheduling multiple new instances.
+    if (!restartScheduled) {
+      restartScheduled = true
+      app.once('will-quit', relaunch)
+    }
+    app.quit()
+  })
   ipcMain.once('ipcReady', e => {
     app.ipcReady = true
     app.emit('ipcReady')
   })
 
   ipcMain.once('ipcReadyWebTorrent', e => {
+    if (windows.webtorrent.failed) return
     app.ipcReadyWebTorrent = true
     log('sending %d queued messages from the main win to the webtorrent window',
       messageQueueMainToWebTorrent.length)
@@ -403,6 +422,7 @@ function init () {
   ipcMain.emit = (name, e, ...args) => {
     // Relay messages between the main window and the WebTorrent hidden window
     if (name.startsWith('wt-') && !app.isQuitting) {
+      if (windows.webtorrent.failed) return
       if (windows.main.win && e.sender === windows.main.win.webContents) {
         try {
           if (name === 'wt-create-torrent') args[1] = permissions.seedOptions(args[1])

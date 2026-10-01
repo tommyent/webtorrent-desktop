@@ -372,6 +372,12 @@ textarea,
  * TORRENT LIST
  */
 
+.engine-stopped {
+  -webkit-app-region: drag;
+  box-sizing: border-box;
+  padding: 40px 25px;
+}
+
 .torrent-list {
   height: 100%;
 }

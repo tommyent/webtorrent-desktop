@@ -147,6 +147,7 @@ function init () {
     const timeout = setTimeout(() => {
       app.removeListener('stateSaved', onSaved)
       app.isQuitting = false
+      app.emit('quitCancelled')
       windows.main.show()
       windows.main.send('error', 'Unable to save before quitting. Please try again.')
     }, 4000)

@@ -200,6 +200,16 @@ function updateElectron () {
 }
 
 const dispatchHandlers = {
+  engineStopped: () => {
+    state.engineStopped = true
+    state.engineStoppedAt = Date.now()
+    state.modal = null
+    state.dock.progress = -1
+    if (state.playing.location === 'external') api.externalPlayer.quit()
+    state.playing = State.getDefaultPlayState()
+    api.player.close()
+  },
+  restartAfterEngineFailure: () => api.app.restartAfterEngineFailure(),
   // Torrent list: creating, deleting, selecting torrents
   openTorrentFile: () => api.dialogs.openTorrentFile(),
   openFiles: () => api.dialogs.openFiles(), /* shows the open file dialog */
@@ -312,6 +322,7 @@ const dispatchHandlers = {
 
 // Events from the UI never modify state directly. Instead they call dispatch()
 function dispatch (action, ...args) {
+  if (state.engineStopped && !['engineStopped', 'restartAfterEngineFailure', 'stateSave', 'stateSaveImmediate', 'error', 'update'].includes(action)) return
   // Log dispatch calls, for debugging, but don't spam
   if (!['mediaMouseMoved', 'mediaTimeUpdate', 'update'].includes(action)) {
     console.log('dispatch: %s %o', action, args)
@@ -436,6 +447,7 @@ function setDimensions (dimensions) {
 // Called when the user adds files (.torrent, files to seed, subtitles) to the app
 // via any method (drag-drop, drag to app icon, command line)
 function onOpen (files) {
+  if (state.engineStopped) return
   if (!Array.isArray(files)) files = [files]
 
   // File API seems to transform "magnet:?foo" in "magnet:///?foo"
@@ -482,8 +494,9 @@ function onError (err) {
 const editableHtmlTags = new Set(['input', 'textarea'])
 
 async function onPaste (e) {
+  if (state.engineStopped) return
   if (e && editableHtmlTags.has(e.target.tagName.toLowerCase())) return
-  controllers.torrentList().addTorrent(await api.clipboard.readText())
+  dispatch('addTorrent', await api.clipboard.readText())
 
   update()
 }

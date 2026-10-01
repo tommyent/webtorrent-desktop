@@ -297,6 +297,64 @@ async function main () {
     await page.evaluate(() => window.webtorrent.state.saveImmediate(window.state.saved))
     assert.deepEqual(errors, [])
     console.log('Audit UI passed: IPC permissions, native selection, offline playback, keyboard buttons, dialog focus, media cleanup and state persistence')
+
+    // Kill the real hidden renderer, including the case where the UI has not
+    // announced readiness yet. Nothing may keep sending to its disposed frame.
+    const beforeCrash = await page.evaluate(() => window.state.saved.torrents.length)
+    await app.evaluate(async ({ app, BrowserWindow, ipcMain }) => {
+      const contents = BrowserWindow.getAllWindows()
+        .find(win => win.webContents.getTitle() === 'WebTorrent Hidden Window').webContents
+      global.restartTest = { quit: app.quit, relaunch: app.relaunch, quits: 0, relaunches: 0, sends: 0 }
+      app.quit = () => { global.restartTest.quits++; app.isQuitting = true }
+      app.relaunch = () => { global.restartTest.relaunches++ }
+      app.ipcReady = false
+      await new Promise(resolve => {
+        contents.once('render-process-gone', resolve)
+        contents.forcefullyCrashRenderer()
+      })
+      contents.send = () => { global.restartTest.sends++; throw new Error('Sent to dead engine') }
+      // A late ready notification cannot revive a failed engine.
+      ipcMain.emit('ipcReadyWebTorrent', { sender: contents })
+    })
+    try {
+      assert.equal(await app.evaluate(({ app }) => app.ipcReadyWebTorrent), false)
+      await app.evaluate(({ app }) => { app.ipcReady = true; app.emit('ipcReady') })
+      const stopped = page.getByRole('alert')
+      await stopped.getByRole('heading', { name: 'The torrent engine stopped' }).waitFor()
+      assert.equal(await page.evaluate(() => window.state.dock.progress), -1, 'Dock progress is hidden')
+      assert.equal(await stopped.evaluate(el => window.getComputedStyle(el).getPropertyValue('-webkit-app-region')), 'drag', 'stopped window can be moved')
+      await page.evaluate(() => {
+        window.webtorrent.torrent.stopServer()
+        window.dispatch('addTorrent', 'magnet:?xt=urn:btih:' + 'c'.repeat(40))
+      })
+      assert.equal(await page.evaluate(() => window.state.saved.torrents.length), beforeCrash, 'failed engine cannot accept new torrents')
+      assert.equal(await app.evaluate(() => global.restartTest.sends), 0, 'no stale IPC sends')
+      await page.evaluate(() => window.dispatch('stateSaveImmediate'))
+      const restart = stopped.getByRole('button', { name: 'Restart WebTorrent' })
+      assert.equal(await restart.evaluate(el => window.getComputedStyle(el).getPropertyValue('-webkit-app-region')), 'no-drag', 'restart remains clickable')
+      await restart.press('Enter')
+      await restart.press('Enter')
+      assert.deepEqual(await app.evaluate(() => [global.restartTest.quits, global.restartTest.relaunches]), [1, 0], 'one normal shutdown, no relaunch before saving')
+      // A cancelled quit (e.g. failed state save) can be retried, without
+      // scheduling a second instance when shutdown eventually succeeds.
+      await app.evaluate(({ app }) => {
+        app.isQuitting = false
+        app.emit('quitCancelled')
+        app.emit('will-quit')
+      })
+      assert.equal(await app.evaluate(() => global.restartTest.relaunches), 0, 'cancelled restart cannot relaunch on a later normal quit')
+      await restart.press('Enter')
+      await app.evaluate(({ app }) => app.emit('will-quit'))
+      assert.deepEqual(await app.evaluate(() => [global.restartTest.quits, global.restartTest.relaunches]), [2, 1])
+      assert.deepEqual(errors, [])
+      console.log('Audit UI: real engine crash, late UI readiness, stale IPC and restart passed')
+    } finally {
+      await app.evaluate(({ app }) => {
+        app.quit = global.restartTest.quit
+        app.relaunch = global.restartTest.relaunch
+        app.isQuitting = false
+      })
+    }
   } finally { await app.close() }
 }
 main().catch(err => { console.error(err); process.exitCode = 1 })

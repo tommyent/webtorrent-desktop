@@ -3,6 +3,7 @@ const webtorrent = module.exports = {
   send,
   show,
   toggleDevTools,
+  failed: false,
   win: null
 }
 
@@ -11,6 +12,7 @@ const { app, BrowserWindow } = require('electron')
 const config = require('../../config')
 
 function init () {
+  webtorrent.failed = false
   const win = webtorrent.win = new BrowserWindow({
     backgroundColor: '#1E1E1E',
     center: true,
@@ -36,6 +38,16 @@ function init () {
   win.webContents.on('will-navigate', event => event.preventDefault())
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.session.setPermissionRequestHandler((contents, permission, respond) => respond(false))
+  win.webContents.on('render-process-gone', (event, details) => {
+    if (app.isQuitting || webtorrent.failed) return
+    webtorrent.failed = true
+    app.ipcReadyWebTorrent = false
+    app.emit('webtorrentStopped')
+    require('../log')('Torrent engine stopped:', details.reason, details.exitCode)
+    const notify = () => require('./main').dispatch('engineStopped')
+    if (app.ipcReady) notify()
+    else app.once('ipcReady', notify)
+  })
   win.loadURL(config.WINDOW_WEBTORRENT)
 
   // Prevent killing the WebTorrent process
@@ -54,7 +66,7 @@ function show () {
 }
 
 function send (...args) {
-  if (!webtorrent.win) return
+  if (webtorrent.failed || !webtorrent.win || webtorrent.win.webContents.isDestroyed()) return
   webtorrent.win.webContents.send(...args)
 }
 
