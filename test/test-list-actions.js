@@ -227,6 +227,15 @@ async function main () {
     ]
   })
   assert.equal(saves(), before + 2, 'torrents still verifying or finished are not counted')
+  // One torrent pauses while another gains the same amount: the total is unchanged,
+  // but the new data still gets saved
+  const active = (torrentKey, downloaded) => ({ torrentKey, ready: true, done: false, downloaded })
+  clock += 61 * 1000
+  saver.torrentProgress({ torrents: [active(20, 16384), active(21, 0)] })
+  assert.equal(saves(), before + 3)
+  clock += 61 * 1000
+  saver.torrentProgress({ torrents: [active(21, 16384)] })
+  assert.equal(saves(), before + 4, 'saved though the total is the same')
   Date.now = realNow
 
   console.log('List action regressions passed: switch during path check, on/off/on, pause all, missing folder, multi-remove, restart before parse, checked rows that leave, fast resume, poster on done, periodic map save')

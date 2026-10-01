@@ -12,7 +12,7 @@ module.exports = class TorrentController {
   constructor (state) {
     this.state = state
     this.mapSavedAt = Date.now()
-    this.mapSavedBytes = 0
+    this.mapSavedDownloads = ''
   }
 
   torrentParsed (torrentKey, infoHash, magnetURI) {
@@ -161,12 +161,14 @@ module.exports = class TorrentController {
       }
     })
 
-    const bytes = progressInfo.torrents
+    // Per torrent: a total could stay the same while one torrent leaves and another gains data
+    const downloads = progressInfo.torrents
       .filter(p => p.ready && !p.done)
-      .reduce((sum, p) => sum + p.downloaded, 0)
-    if (bytes !== this.mapSavedBytes && Date.now() - this.mapSavedAt >= MAP_SAVE_INTERVAL) {
+      .map(p => p.torrentKey + ':' + p.downloaded)
+      .join()
+    if (downloads !== this.mapSavedDownloads && Date.now() - this.mapSavedAt >= MAP_SAVE_INTERVAL) {
       this.mapSavedAt = Date.now()
-      this.mapSavedBytes = bytes
+      this.mapSavedDownloads = downloads
       dispatch('stateSave')
     }
 
