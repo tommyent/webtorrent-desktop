@@ -29,8 +29,11 @@ WebTorrent 3, and React 19, with:
 
 ## Install
 
-There are no release builds of this fork yet. [Build it from source](#how-to-contribute) and
-package it for your platform (see [Package the app](#package-the-app)).
+Download a build for macOS, Windows or Linux from the
+[releases page](https://github.com/tommyent/webtorrent-desktop/releases). The builds are not
+signed, so each release's notes explain how to open them the first time. You can also
+[build it from source](#how-to-contribute) and package it for your platform (see
+[Package the app](#package-the-app)).
 
 The [upstream website](https://webtorrent.io/desktop/) and `brew install --cask webtorrent`
 distribute the upstream app and do not include this fork's changes.
