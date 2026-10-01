@@ -251,6 +251,15 @@ async function main () {
     assert.equal(await stopEngineTorrent(), false)
     console.log('Audit UI: play before the torrent is parsed passed')
 
+    // The player picker starts in /Applications on a Mac when no player is set, and any file can be picked.
+    await app.evaluate(({ dialog }) => { dialog.showOpenDialogSync = (win, opts) => { global.playerDialog = opts } })
+    await page.evaluate(() => window.dispatch('preferences'))
+    await page.getByRole('button', { name: 'Change External player', exact: true }).click()
+    const playerDialog = await app.evaluate(() => global.playerDialog)
+    assert.equal(playerDialog.defaultPath, process.platform === 'darwin' ? '/Applications' : undefined)
+    assert.equal(playerDialog.filters, undefined)
+    await page.evaluate(() => window.dispatch('backToList'))
+
     await page.evaluate(() => window.dispatch('openTorrentAddress'))
     console.log('Audit UI: keyboard playback passed')
     const dialog = page.getByRole('dialog')

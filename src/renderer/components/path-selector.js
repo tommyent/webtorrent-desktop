@@ -26,7 +26,9 @@ class PathSelector extends React.Component {
   }
 
   handleClick () {
-    const filenames = api.dialogs.showOpen(this.props.purpose, api.path.dirname(this.props.value || ''))
+    // Nothing chosen yet: let main pick the purpose's default folder
+    const value = this.props.value
+    const filenames = api.dialogs.showOpen(this.props.purpose, value ? api.path.dirname(value) : undefined)
     if (!Array.isArray(filenames)) return
     this.props.onChange && this.props.onChange(filenames[0])
   }

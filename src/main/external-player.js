@@ -45,12 +45,14 @@ function kill () {
 }
 
 function spawnExternal (playerPath, args) {
-  log('Running external media player:', `${playerPath} ${args.join(' ')}`)
-
   if (process.platform === 'darwin' && path.extname(playerPath) === '.app') {
-    // Mac: Use executable in packaged .app bundle
-    playerPath += `/Contents/MacOS/${path.basename(playerPath, '.app')}`
+    // Mac: hand the URL to the app through Launch Services. Most players (IINA,
+    // QuickTime) take URLs from open events rather than argv, and this reuses a
+    // copy that is already running. -W waits until the app quits.
+    args = ['-W', '-a', playerPath, ...args]
+    playerPath = '/usr/bin/open'
   }
+  log('Running external media player:', `${playerPath} ${args.join(' ')}`)
 
   proc = cp.spawn(playerPath, args, { stdio: 'ignore' })
 

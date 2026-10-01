@@ -27,7 +27,12 @@ function setModule (name, module) {
 const OPEN_DIALOGS = {
   downloadPath: { title: 'Select download directory', properties: ['openDirectory'] },
   torrentsFolderPath: { title: 'Select folder to watch for new torrents', properties: ['openDirectory'] },
-  externalPlayerPath: { title: 'Select media player app', properties: ['openFile'] },
+  externalPlayerPath: {
+    title: 'Select media player app',
+    properties: ['openFile'],
+    // Start where Mac apps live; any file stays pickable (plain binaries such as mpv)
+    ...(process.platform === 'darwin' && { defaultPath: '/Applications' })
+  },
   subtitles: {
     title: 'Select a subtitles file.',
     filters: [{ name: 'Subtitles', extensions: ['vtt', 'srt'] }],
@@ -332,7 +337,7 @@ function init () {
       e.returnValue = undefined // same as Cancel
       return
     }
-    defaultPath = typeof defaultPath === 'string' ? defaultPath : undefined
+    defaultPath = typeof defaultPath === 'string' && defaultPath ? defaultPath : opts.defaultPath
     e.returnValue = permissions.select(electron.dialog.showOpenDialogSync(main.win, { ...opts, defaultPath }), purpose)
   })
 
