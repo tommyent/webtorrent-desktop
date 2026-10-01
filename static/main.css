@@ -499,6 +499,8 @@ textarea,
 
 /* Selection for the header's Remove button; checked shows an X */
 .torrent .remove-select {
+  opacity: 0;
+  pointer-events: none;
   position: absolute;
   top: 37px;
   right: 12px;
@@ -510,10 +512,16 @@ textarea,
   line-height: 20px;
 }
 
+.torrent:hover .remove-select,
+.torrent:focus-within .remove-select,
+.torrent .remove-select[aria-checked='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .torrent .remove-select[aria-checked='true'] {
   background: #e53935;
   border-color: #e53935;
-  opacity: 1;
 }
 
 .torrent .buttons .radial-progress {

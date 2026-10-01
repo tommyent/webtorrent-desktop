@@ -30,6 +30,7 @@ test('video-streaming', function (t) {
     .then(() => app.webContents.executeJavaScript('dispatch("escapeBack")'))
     .then(() => setup.wait())
     // Delete Big Buck Bunny
+    .then(() => app.client.moveToObject('.torrent'))
     .then(() => app.client.click('.torrent .remove-select'))
     .then(() => app.client.click('.header .remove-selected'))
     .then(() => setup.wait())

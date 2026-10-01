@@ -17,6 +17,7 @@ test('add-torrent', function (t) {
     .then(() => setup.screenshotCreateOrCompare(
       app, t, 'add-torrent-0-percent', '.header'))
     // Delete the torrent.
+    .then(() => app.client.moveToObject('.torrent'))
     .then(() => app.client.click('.torrent .remove-select'))
     .then(() => app.client.click('.header .remove-selected'))
     .then(() => app.client.waitUntilTextExists('.modal', 'REMOVE'))
