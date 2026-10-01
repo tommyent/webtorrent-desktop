@@ -106,6 +106,11 @@ function init () {
     assertMainSender(e)
     return electron.clipboard.readText()
   })
+  ipcMain.handle('writeClipboardText', (e, text) => {
+    assertMainSender(e)
+    if (typeof text !== 'string' || text.length > 1024 * 1024) throw new TypeError('Invalid clipboard text')
+    return electron.clipboard.writeText(text)
+  })
   ipcMain.on('rendererPath', (e, operation, args) => {
     assertMainSender(e)
     const path = require('path')

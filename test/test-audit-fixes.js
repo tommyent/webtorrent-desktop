@@ -176,6 +176,22 @@ async function main () {
   assert.equal(summary.completed, true, 'engine completion is retained for paused torrents')
   const TorrentList = require('../build/renderer/pages/torrent-list-page')
   const list = new TorrentList({ state: { saved: { prefs: { sortByName: false } } } })
+  const { renderToStaticMarkup } = require('react-dom/server')
+  for (const [torrent, label] of [
+    [{ status: 'paused' }, 'Paused'],
+    [{ status: 'paused', completed: true }, 'Not seeding'],
+    [{ status: 'new' }, 'Starting…'],
+    [{ status: 'downloading' }, 'Verifying'],
+    [{ status: 'downloading', progress: { ready: false, numPeers: 0, downloadSpeed: 0 } }, 'Verifying'],
+    [{ status: 'downloading', progress: { ready: true, numPeers: 0, downloadSpeed: 0 } }, 'Waiting for peers'],
+    [{ status: 'downloading', progress: { ready: true, numPeers: 0, downloadSpeed: 100 } }, 'Downloading'],
+    [{ status: 'seeding', progress: { ready: true, numPeers: 0 } }, 'Seeding']
+  ]) {
+    if (torrent.progress) torrent.progress = { progress: 0, downloaded: 0, length: 1000, ...torrent.progress }
+    const markup = renderToStaticMarkup(list.renderTorrentMetadata(torrent))
+    assert.ok(markup.includes('>' + label + '</span>'), label)
+    if (torrent.progress) assert.ok(markup.includes('0 peers'), 'zero peers is explicit')
+  }
   const indices = []
   list.renderFileRow = (torrent, file, index) => { indices.push(index); return null }
   list.renderTorrentDetails({ files: [{ path: 'a.mp4' }, { path: '.____padding_file/0' }, { path: 'b.mp4' }] })

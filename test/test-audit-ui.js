@@ -193,6 +193,43 @@ async function main () {
     // Dialog selection is stubbed in the main process, just as a user's native
     // selection would be; the renderer must receive a real permission grant.
     console.log('Audit UI: permission checks passed')
+    // Errors survive the old five-second expiry, announce accessibly, and can
+    // be copied/dismissed from the keyboard. Capture writes, preserving the clipboard.
+    await app.evaluate(({ clipboard }) => {
+      global.originalWriteText = clipboard.writeText
+      clipboard.writeText = async text => {
+        if (global.failErrorCopy) throw new Error('Clipboard unavailable')
+        global.copiedErrorText = text
+      }
+    })
+    try {
+      await page.evaluate(() => {
+        window.state.errors = [{ time: Date.now() - 60000, message: 'Persistent test error' }]
+        window.state.errorsCopied = false
+        window.dispatch('update')
+      })
+      await page.getByRole('alert').getByText('Persistent test error').waitFor()
+      await page.getByRole('button', { name: 'Copy details', exact: true }).press('Enter')
+      await page.getByRole('button', { name: 'Copied', exact: true }).waitFor()
+      assert.equal(await app.evaluate(() => global.copiedErrorText), 'Persistent test error')
+      await page.evaluate(() => {
+        window.state.errors.push({ time: Date.now(), message: 'A new casting error' })
+        window.dispatch('update')
+      })
+      await page.getByRole('button', { name: 'Copy details', exact: true }).waitFor()
+      await assert.rejects(page.evaluate(() => window.webtorrent.clipboard.writeText({ secret: true })), /Invalid clipboard text/)
+      await assert.rejects(engine.evaluate(() => require('electron').ipcRenderer.invoke('writeClipboardText', 'denied')), /unknown renderer/)
+      await app.evaluate(() => { global.failErrorCopy = true })
+      await page.getByRole('button', { name: 'Copy details', exact: true }).press('Enter')
+      await page.getByRole('alert').getByText(/Clipboard unavailable/).waitFor()
+      assert.equal(await page.getByRole('button', { name: 'Copied', exact: true }).count(), 0, 'a rejected clipboard write cannot claim success')
+      await page.getByRole('button', { name: 'Dismiss', exact: true }).press('Enter')
+      assert.equal(await page.getByRole('alert').count(), 0)
+      assert.equal(await page.evaluate(() => document.activeElement.closest('.header') !== null), true, 'dismiss restores focus to navigation')
+    } finally {
+      await app.evaluate(({ clipboard }) => { clipboard.writeText = global.originalWriteText })
+    }
+    console.log('Audit UI: persistent errors, copy, dismissal and focus passed')
     const file = path.join(__dirname, 'resources', 'monitor-test.mp4')
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialogSync = () => [file] }, file)
     // A pick for another purpose, here the download folder, doesn't allow seeding.

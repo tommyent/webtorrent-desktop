@@ -32,7 +32,8 @@ contextBridge.exposeInMainWorld('webtorrent', {
     onEvent: callback => on('wt-cast-event', callback)
   },
   clipboard: {
-    readText: () => ipcRenderer.invoke('readClipboardText')
+    readText: () => ipcRenderer.invoke('readClipboardText'),
+    writeText: text => ipcRenderer.invoke('writeClipboardText', text)
   },
   dialogs: {
     openFiles: () => ipcRenderer.send('openFiles'),

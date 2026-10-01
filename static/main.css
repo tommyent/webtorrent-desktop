@@ -981,8 +981,9 @@ video::-webkit-media-text-track-container {
   z-index: 1;
 }
 
-.error-popover.hidden {
-  display: none;
+.error-messages {
+  max-height: 30vh;
+  overflow-y: auto;
 }
 
 .error-popover .error,
@@ -993,12 +994,29 @@ video::-webkit-media-text-track-container {
 }
 
 .error-popover .title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-weight: bold;
   color: #c44;
 }
 
+.error-popover .title span {
+  flex: 1;
+}
+
+.error-popover button {
+  padding: 4px 8px;
+  color: #eee;
+  background: #444;
+  border: 1px solid #777;
+  border-radius: 3px;
+}
+
 .error-popover .error {
   color: #bbb;
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 
 .error-popover .error:last-child {

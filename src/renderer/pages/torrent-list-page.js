@@ -182,7 +182,7 @@ module.exports = class TorrentList extends React.Component {
     }
 
     function renderPeers () {
-      if (prog.numPeers === 0) return
+      if (!Number.isFinite(prog.numPeers)) return
       const count = prog.numPeers === 1 ? 'peer' : 'peers'
       return (<span key='peers'>{prog.numPeers} {count}</span>)
     }
@@ -210,12 +210,10 @@ module.exports = class TorrentList extends React.Component {
     function renderTorrentStatus () {
       let status
       if (torrentSummary.status === 'paused') {
-        if (!torrentSummary.progress) status = ''
-        else if (torrentSummary.progress.progress === 1) status = 'Not seeding'
-        else status = 'Paused'
+        status = torrentSummary.completed || prog?.progress === 1 ? 'Not seeding' : 'Paused'
       } else if (torrentSummary.status === 'downloading') {
-        if (!torrentSummary.progress) status = ''
-        else if (!torrentSummary.progress.ready) status = 'Verifying'
+        if (!prog || !prog.ready) status = 'Verifying'
+        else if (prog.numPeers === 0 && prog.downloadSpeed === 0) status = 'Waiting for peers'
         else status = 'Downloading'
       } else if (torrentSummary.status === 'seeding') {
         status = 'Seeding'

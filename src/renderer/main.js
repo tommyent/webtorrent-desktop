@@ -314,6 +314,17 @@ const dispatchHandlers = {
   // Everything else
   onOpen,
   error: onError,
+  dismissErrors: () => {
+    state.errors = []
+    state.errorsCopied = null
+    document.querySelector('.header button:not(:disabled)')?.focus()
+  },
+  copyErrors: () => {
+    const text = state.errors.map(error => error.message).join('\n\n')
+    api.clipboard.writeText(text)
+      .then(() => { state.errorsCopied = text; update() })
+      .catch(onError)
+  },
   uncaughtError: (proc, err) => console.error(proc, err),
   stateSave: () => State.save(state),
   stateSaveImmediate: () => State.saveImmediate(state),

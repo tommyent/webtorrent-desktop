@@ -70,18 +70,18 @@ class App extends React.Component {
 
   getErrorPopover () {
     const state = this.props.state
-    const now = new Date().getTime()
-    const recentErrors = state.errors.filter((x) => now - x.time < 5000)
-    const hasErrors = recentErrors.length > 0
-
-    const errorElems = recentErrors.map((error, i) => <div key={i} className='error'>{error.message}</div>)
+    if (state.errors.length === 0) return null
+    const errorElems = state.errors.map((error, i) => <div key={i} className='error'>{error.message}</div>)
     return (
-      <div
-        key='errors'
-        className={'error-popover ' + (hasErrors ? 'visible' : 'hidden')}
-      >
-        <div key='title' className='title'>Error</div>
-        {errorElems}
+      <div key='errors' className='error-popover'>
+        <div className='title'>
+          <span>Error</span>
+          <button type='button' onClick={() => dispatch('copyErrors')}>
+            {state.errorsCopied === state.errors.map(error => error.message).join('\n\n') ? 'Copied' : 'Copy details'}
+          </button>
+          <button type='button' onClick={() => dispatch('dismissErrors')}>Dismiss</button>
+        </div>
+        <div className='error-messages' role='alert'>{errorElems}</div>
       </div>
     )
   }
