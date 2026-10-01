@@ -129,7 +129,8 @@ module.exports = class TorrentListController {
         TorrentSummary.getTorrentId(s),
         s.path,
         s.fileModtimes,
-        s.selections)
+        s.selections,
+        TorrentSummary.getResumeBitfield(s))
     }
   }
 

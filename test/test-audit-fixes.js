@@ -159,7 +159,7 @@ async function main () {
 
   let notifications = 0
   global.window = {
-    webtorrent: { path, config: { STATIC_PATH: dir }, dock: { downloadFinished () {} }, torrent: {} },
+    webtorrent: { path, config: { STATIC_PATH: dir }, dock: { downloadFinished () {} }, torrent: { generatePoster () {} } },
     Notification: class { constructor () { notifications++ } }
   }
   const TorrentController = require('../src/renderer/controllers/torrent-controller')

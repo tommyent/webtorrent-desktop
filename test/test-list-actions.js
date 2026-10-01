@@ -162,7 +162,38 @@ async function main () {
   list.confirmRemoveSelected()
   assert.deepEqual(state.modal.torrentKeys, [10], 'only rows still listed')
 
-  console.log('List action regressions passed: switch during path check, on/off/on, pause all, missing folder, multi-remove, restart before parse, checked rows that leave')
+  // Fast resume: an unfinished torrent restarts with its piece map, but only one
+  // taken after verification; saving keeps it for unfinished torrents only.
+  const resumes = []
+  window.webtorrent.torrent.start = (...args) => resumes.push(args[5])
+  const r = state.saved.torrents.find(t => t.torrentKey === 10)
+  Object.assign(r, { status: 'paused', bitfield: 'c2F2ZWQ=', progress: { ready: true, bitfield: { buffer: new Uint8Array([0xf0, 0x01]) } } })
+  delete r.path
+  list.toggleTorrent(10)
+  r.status = 'paused'
+  r.progress.ready = false
+  list.toggleTorrent(10)
+  assert.deepEqual(resumes, ['8AE=', 'c2F2ZWQ='], 'live map once verified, else the saved one')
+  const State = require('../src/renderer/lib/state')
+  let written
+  window.webtorrent.state = { saveImmediate: copy => { written = copy; return Promise.resolve() } }
+  r.progress.ready = true
+  State.saveImmediate(state)
+  assert.equal(written.torrents.find(t => t.infoHash === hash).bitfield, '8AE=')
+  r.completed = true
+  State.saveImmediate(state)
+  assert.equal(written.torrents.find(t => t.infoHash === hash).bitfield, undefined, 'finished torrents keep no map')
+
+  // A torrent that finishes without a poster gets another try.
+  const posters = []
+  window.webtorrent.torrent.generatePoster = torrentKey => posters.push(torrentKey)
+  delete r.posterFileName
+  torrents.torrentDone(10, { bytesReceived: 0 })
+  r.posterFileName = 'p.jpg'
+  torrents.torrentDone(10, { bytesReceived: 0 })
+  assert.deepEqual(posters, [10])
+
+  console.log('List action regressions passed: switch during path check, on/off/on, pause all, missing folder, multi-remove, restart before parse, checked rows that leave, fast resume, poster on done')
 }
 
 main().catch(err => {

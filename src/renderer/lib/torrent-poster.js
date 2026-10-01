@@ -138,7 +138,9 @@ function torrentPosterFromVideo (torrent, serverBaseURL, cb, token) {
   video.src = url
   video.play().catch(finish)
   video.addEventListener('error', () => finish(new Error('Unable to decode poster video')))
-  const timeout = setTimeout(() => finish(new Error('Poster generation timed out')), 15000)
+  // Mid-download the frame waits for its pieces (and an MKV's index at the end of
+  // the file), which can take minutes; the limit only frees a stalled stream.
+  const timeout = setTimeout(() => finish(new Error('Poster generation timed out')), 5 * 60 * 1000)
   let finished = false
   function finish (err, buf) {
     if (finished) return

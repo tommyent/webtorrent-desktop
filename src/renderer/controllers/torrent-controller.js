@@ -109,6 +109,9 @@ module.exports = class TorrentController {
     torrentSummary.completed = true
     dispatch('stateSave')
 
+    // A poster that couldn't be made mid-download gets another try with all the data
+    if (!torrentSummary.posterFileName) api.torrent.generatePoster(torrentKey)
+
     // Notify the user that a torrent finished, but only if we actually DL'd at least part of it.
     // Don't notify if we merely finished verifying data files that were already on disk.
     if (torrentInfo.bytesReceived > 0) {

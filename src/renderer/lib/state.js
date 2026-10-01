@@ -2,6 +2,7 @@ const debounce = require('debounce')
 const LocationHistory = require('location-history')
 
 const api = require('./api')
+const TorrentSummary = require('./torrent-summary')
 const config = require('./config')
 
 const SAVE_DEBOUNCE_INTERVAL = 1000
@@ -136,9 +137,12 @@ function persist (state, write) {
     .map(item => {
       const torrent = {}
       for (const key in item) {
-        if (key === 'progress' || key === 'torrentKey' || key === 'error') continue
+        if (key === 'progress' || key === 'torrentKey' || key === 'error' || key === 'bitfield') continue
         torrent[key] = item[key]
       }
+      // Finished torrents resume from their file modtimes instead
+      const bitfield = !item.completed && TorrentSummary.getResumeBitfield(item)
+      if (bitfield) torrent.bitfield = bitfield
       return torrent
     })
 

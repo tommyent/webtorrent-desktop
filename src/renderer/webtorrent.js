@@ -95,8 +95,8 @@ function init () {
 
   ipcRenderer.on('wt-set-global-trackers', (e, globalTrackers) =>
     setGlobalTrackers(globalTrackers))
-  ipcRenderer.on('wt-start-torrenting', (e, torrentKey, torrentID, path, fileModtimes, selections) =>
-    startTorrenting(torrentKey, torrentID, path, fileModtimes, selections))
+  ipcRenderer.on('wt-start-torrenting', (e, torrentKey, torrentID, path, fileModtimes, selections, bitfield) =>
+    startTorrenting(torrentKey, torrentID, path, fileModtimes, selections, bitfield))
   ipcRenderer.on('wt-stop-torrenting', (e, torrentKey) =>
     stopTorrenting(torrentKey))
   ipcRenderer.on('wt-create-torrent', (e, torrentKey, options) =>
@@ -152,12 +152,15 @@ function setGlobalTrackers (globalTrackers) {
 
 // Starts a given TorrentID, which can be an infohash, magnet URI, etc.
 // Returns a WebTorrent object. See https://git.io/vik9M
-function startTorrenting (torrentKey, torrentID, path, fileModtimes, selections) {
+function startTorrenting (torrentKey, torrentID, path, fileModtimes, selections, bitfield) {
   console.log('starting torrent %s: %s', torrentKey, torrentID)
 
   const torrent = client.add(torrentID, {
     path,
-    fileModtimes
+    fileModtimes,
+    // Saved piece map: WebTorrent spot-checks it instead of re-hashing all data
+    // (it ignores a map of the wrong size)
+    bitfield: typeof bitfield === 'string' ? new Uint8Array(Buffer.from(bitfield, 'base64')) : undefined
   })
   torrent.key = torrentKey
 
@@ -304,12 +307,18 @@ function saveTorrentFile (torrentKey) {
 
 // Save a JPG that represents a torrent.
 // Auto chooses either a frame from a video file, an image, etc
+// Metadata and done can both ask for a poster; one attempt at a time is enough
+const postersInProgress = new Set()
+
 function generateTorrentPoster (torrentKey) {
+  if (postersInProgress.has(torrentKey)) return
   const torrent = getTorrent(torrentKey)
+  postersInProgress.add(torrentKey)
   // Video posters stream a frame over the shared server, so it must be up
   ensureServer().grant(torrent).then(grant => {
     torrentPoster(torrent, grant.baseURL, (err, buf, extension) => {
       grant.release()
+      postersInProgress.delete(torrentKey)
       if (err) return console.log('error generating poster: %o', err)
       // save it for next time
       fs.mkdir(config.POSTER_PATH, { recursive: true }, err => {
@@ -323,7 +332,10 @@ function generateTorrentPoster (torrentKey) {
         })
       })
     }, grant.token)
-  }).catch(onError)
+  }).catch(err => {
+    postersInProgress.delete(torrentKey)
+    onError(err)
+  })
 }
 
 function updateTorrentProgress () {

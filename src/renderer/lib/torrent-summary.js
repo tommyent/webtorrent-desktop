@@ -4,7 +4,8 @@ module.exports = {
   getByKey,
   getTorrentId,
   getFileOrFolder,
-  getRemovalSelection
+  getRemovalSelection,
+  getResumeBitfield
 }
 
 const api = require('./api')
@@ -62,4 +63,15 @@ function getFileOrFolder (torrentSummary) {
 // (a row can also leave as a rejected duplicate, an error or a private magnet)
 function getRemovalSelection (state) {
   return state.removalSelection.filter(key => state.saved.torrents.some(t => t.torrentKey === key))
+}
+
+// The piece map of an unfinished torrent, base64, so WebTorrent can resume by
+// spot-checking a piece per file instead of re-hashing all its data. Only a map
+// taken after verification counts: a partial one would mark data on disk missing.
+function getResumeBitfield (torrentSummary) {
+  const progress = torrentSummary.progress
+  if (!progress || !progress.ready || !progress.bitfield) return torrentSummary.bitfield
+  let bytes = ''
+  for (const byte of progress.bitfield.buffer) bytes += String.fromCharCode(byte)
+  return btoa(bytes)
 }
