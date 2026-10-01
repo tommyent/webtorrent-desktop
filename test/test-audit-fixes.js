@@ -14,10 +14,21 @@ const migrations = require('../src/main/migrations')
 async function main () {
   const bandwidth = require('../src/renderer/lib/bandwidth')
   assert.deepEqual(bandwidth.options({}), { downloadLimit: -1, uploadLimit: -1 })
-  assert.deepEqual(bandwidth.options({ downloadLimitKiB: 128, uploadLimitKiB: 0 }), { downloadLimit: 131072, uploadLimit: -1 })
-  for (const value of [-1, 0.5, NaN, Infinity, '128', null, Number.MAX_SAFE_INTEGER]) {
+  assert.deepEqual(bandwidth.options({ downloadLimitMB: 12.5, uploadLimitMB: 0 }), { downloadLimit: 12500000, uploadLimit: -1 })
+  assert.equal(bandwidth.toBytes(0.3), 300000)
+  for (const value of [-1, -0.1, NaN, Infinity, '12.5', null, 100000.1]) {
     assert.throws(() => bandwidth.toBytes(value), /Bandwidth limits/)
   }
+  // Saved KiB/s limits keep their byte rates; one above the maximum is capped, not made unlimited.
+  for (const kib of [1, 48, 64, 128, 12000, 97656250, 97656300]) {
+    const prefs = { downloadLimitKiB: kib, uploadLimitKiB: 0 }
+    bandwidth.migrate(prefs)
+    assert.deepEqual(bandwidth.options(prefs), { downloadLimit: Math.min(kib * 1024, 1e11), uploadLimit: -1 }, kib + ' KiB/s')
+    assert.equal('downloadLimitKiB' in prefs, false)
+  }
+  const prefs = { downloadLimitKiB: 0, uploadLimitKiB: 500, uploadLimitMB: 2 }
+  bandwidth.migrate(prefs)
+  assert.deepEqual(prefs, { uploadLimitMB: 2 }, 'a saved MB/s limit wins')
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'webtorrent-fixes-'))
   const file = path.join(dir, 'sample.srt')
   await fs.writeFile(file, '1\n00:00:01,000 --> 00:00:02,000\nHello\n')

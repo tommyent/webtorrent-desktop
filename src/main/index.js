@@ -91,7 +91,7 @@ function init () {
           delete torrent.torrentPath
           delete torrent.posterURL
         }
-        const limitsChanged = ['downloadLimitKiB', 'uploadLimitKiB'].some(key => saved.prefs[key] !== state.saved.prefs[key])
+        const limitsChanged = ['downloadLimitMB', 'uploadLimitMB'].some(key => saved.prefs[key] !== state.saved.prefs[key])
         state.saved = saved
         if (limitsChanged && app.ipcReadyWebTorrent) {
           windows.webtorrent.send('wt-set-bandwidth', require('../renderer/lib/bandwidth').options(saved.prefs))

@@ -9,6 +9,7 @@ const PathSelector = require('../components/path-selector')
 
 const { dispatch } = require('../lib/dispatcher')
 const config = require('../lib/config')
+const { MAX_MB } = require('../lib/bandwidth')
 
 class PreferencesPage extends React.Component {
   constructor (props) {
@@ -282,18 +283,18 @@ class PreferencesPage extends React.Component {
           {this.highestPlaybackPriorityCheckbox()}
         </PreferencesSection>
         <PreferencesSection title='Torrent bandwidth'>
-          <p id='bandwidth-help'>Limits apply across all torrents, including playback. 0 means unlimited. 1 KiB = 1,024 bytes.</p>
+          <p id='bandwidth-help'>Limits apply across all torrents, including playback. 0 means unlimited. A 100 Mbps internet plan is about 12.5 MB/s.</p>
           <div className='bandwidth-limits'>
             {['download', 'upload'].map(direction => (
               <label key={direction}>
-                {direction === 'download' ? 'Download limit (KiB/s)' : 'Upload limit (KiB/s)'}
+                {direction === 'download' ? 'Download limit (MB/s)' : 'Upload limit (MB/s)'}
                 <input
-                  type='number' min='0' step='1' max={Math.floor(Number.MAX_SAFE_INTEGER / 1024)}
+                  type='number' min='0' step='any' max={MAX_MB}
                   aria-describedby='bandwidth-help'
-                  defaultValue={this.props.state.saved.prefs[direction + 'LimitKiB'] || 0}
+                  defaultValue={this.props.state.saved.prefs[direction + 'LimitMB'] || 0}
                   onBlur={e => {
                     if (e.target.value === '') e.target.value = '0'
-                    if (e.target.reportValidity()) dispatch('updatePreferences', direction + 'LimitKiB', e.target.valueAsNumber)
+                    if (e.target.reportValidity()) dispatch('updatePreferences', direction + 'LimitMB', e.target.valueAsNumber)
                   }}
                   onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                 />
