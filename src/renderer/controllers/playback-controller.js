@@ -74,7 +74,7 @@ module.exports = class PlaybackController {
 
     // force rerendering if window is hidden,
     // in order to bypass `raf` and play/pause media immediately
-    const mediaTag = document.querySelector('video,audio')
+    const mediaTag = document.querySelector('.letterbox > video, .letterbox > audio')
     if (!state.window.isVisible && mediaTag) {
       if (state.playing.isPaused) mediaTag.play()
       else mediaTag.pause()

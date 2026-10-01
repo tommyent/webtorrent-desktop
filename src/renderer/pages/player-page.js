@@ -31,9 +31,9 @@ module.exports = class Player extends React.Component {
   }
 
   componentWillUnmount () {
-    // Unload the media element so that Chromium stops trying to fetch data
-    const tag = document.querySelector('audio,video')
-    if (tag) {
+    // Unload the media elements (the player's and the seek-bar preview) so
+    // that Chromium stops trying to fetch data
+    for (const tag of document.querySelectorAll('audio,video')) {
       tag.pause()
       tag.removeAttribute('src')
       tag.load()
@@ -55,8 +55,10 @@ function renderMedia (state) {
 
   // Unfortunately, play/pause can't be done just by modifying HTML.
   // Instead, grab the DOM node and play/pause it if necessary
-  // Get the <video> or <audio> tag
-  const mediaElement = document.querySelector(state.playing.type)
+  // Get the player's <video> or <audio> tag. Not just the first one: right after
+  // a cast ends it isn't mounted yet, and the seek-bar preview video would get
+  // played (with sound) and take the resume position.
+  const mediaElement = document.querySelector('.letterbox > ' + state.playing.type)
   if (mediaElement !== null) {
     if (navigator.mediaSession.metadata === null && mediaElement.played.length !== 0) {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -934,6 +936,7 @@ function renderPreview (state) {
         <video
           src={Playlist.getCurrentLocalURL(state)}
           id='preview'
+          muted
           style={{ border: '1px solid lightgrey', borderRadius: 2 }}
         />
       </div>
