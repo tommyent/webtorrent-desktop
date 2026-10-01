@@ -11,37 +11,33 @@
 
 <h4 align="center">The streaming torrent app. For Mac, Windows, and Linux.</h4>
 
+An unofficial, maintained fork of
+[WebTorrent Desktop](https://github.com/webtorrent/webtorrent-desktop), which has had only
+automated dependency updates since August 2024. This fork updates the app to Electron 44,
+WebTorrent 3, and React 19, with:
+
+- Native Apple Silicon and Intel Mac builds.
+- Faster startup and resume of unfinished downloads.
+- A start/pause switch and checkboxes for removing multiple torrents.
+- IINA support on macOS, alongside VLC and other external players.
+- No telemetry, crash reports, announcements, or update checks (see [Privacy](#privacy)).
+
 <p align="center">
-  <a href="https://discord.gg/cnXkm4Z"><img src="https://img.shields.io/discord/612575111718895616" alt="discord"></a>
-  <a href="https://github.com/webtorrent/webtorrent-desktop/actions/workflows/ci.yml"><img src="https://github.com/webtorrent/webtorrent-desktop/actions/workflows/ci.yml/badge.svg" alt="GitHub CI action"></a>
-  <a href="https://github.com/webtorrent/webtorrent-desktop/releases"><img src="https://img.shields.io/github/release/webtorrent/webtorrent-desktop.svg" alt="github release version"></a>
-  <a href="https://github.com/webtorrent/webtorrent-desktop/releases"><img src="https://img.shields.io/github/downloads/webtorrent/webtorrent-desktop/total.svg" alt="github release downloads"></a>
+  <a href="https://github.com/tommyent/webtorrent-desktop/actions/workflows/ci.yml"><img src="https://github.com/tommyent/webtorrent-desktop/actions/workflows/ci.yml/badge.svg" alt="GitHub CI action"></a>
   <a href="https://standardjs.com"><img src="https://img.shields.io/badge/code_style-standard-brightgreen.svg" alt="Standard - JavaScript Style Guide"></a>
 </p>
 
 ## Install
 
-### Recommended Install
+There are no release builds of this fork yet. [Build it from source](#how-to-contribute) and
+package it for your platform (see [Package the app](#package-the-app)).
 
-Download the latest version of WebTorrent Desktop from
-[the official website](https://webtorrent.io/desktop/):
-
-### [✨ Download WebTorrent Desktop ✨](https://webtorrent.io/desktop/)
-
-### Advanced Install
-
-- Download specific installer files from the [GitHub releases](https://github.com/webtorrent/webtorrent-desktop/releases) page.
-
-- Use [Homebrew-Cask](https://github.com/caskroom/homebrew-cask) to install from the command line:
-
-  ```
-  $ brew install --cask webtorrent
-  ```
-
-- Try the (unstable) development version by cloning the Git repository. See the
-  ["How to Contribute"](#how-to-contribute) instructions.
+The [upstream website](https://webtorrent.io/desktop/) and `brew install --cask webtorrent`
+distribute the upstream app and do not include this fork's changes.
 
 ## Screenshots
+
+These screenshots show the upstream app; this fork has updated list controls.
 
 <p align="center">
   <img src="https://webtorrent.io/img/screenshot-player3.png" alt="screenshot" align="center">
@@ -53,12 +49,12 @@ Download the latest version of WebTorrent Desktop from
 ### Get the code
 
 ```
-$ git clone https://github.com/webtorrent/webtorrent-desktop.git
+$ git clone --branch modernization/electron-43-webtorrent-3 https://github.com/tommyent/webtorrent-desktop.git
 $ cd webtorrent-desktop
 $ npm ci
 ```
 
-Development requires Node.js 22.12 or newer.
+Development requires Node.js 22.12 or newer and npm 10 or newer.
 
 ### Run the app
 
@@ -80,31 +76,27 @@ $ npm run watch
 $ npm test
 ```
 
-### Run integration tests
+### Run tests
 
 ```
-$ npm run test-integration
+$ npm run build
+$ npm run test-unit
+$ CI=1 npm run test-integration
 ```
 
-The integration tests use Playwright and Tape. They click through the app, taking screenshots and
-comparing each one to a reference. Why screenshots?
+The unit tests cover controller and engine behavior. The integration tests use Playwright and
+Tape to click through the app and compare screenshots with the checked-in baselines. `CI=1` skips
+the live-video and fullscreen screenshots, which vary with graphics hardware and display settings.
+CI runs the full integration suite on macOS and the audit UI test on Windows and Linux.
 
-* Ad-hoc checking makes the tests a lot more work to write
-* Even diffing the whole HTML is not as thorough as screenshot diffing. For example, it wouldn't
-  catch an bug where hitting ESC from a video doesn't correctly restore window size.
-* Chrome's own integration tests use screenshot diffing iirc
-* Small UI changes will break a few tests, but the fix is as easy as deleting the offending
-  screenshots and running the tests, which will recreate them with the new look.
-* The resulting Github PR will then show, pixel by pixel, the exact UI changes that were made! See
-  https://github.com/blog/817-behold-image-view-modes
+For intentional UI changes on macOS, regenerate the baselines and review the image diffs:
 
-For MacOS, you'll need a Retina screen for the integration tests to pass. Your screen should have
-the same resolution as a 2018 MacBook Pro 13".
+```
+$ UPDATE_SCREENSHOTS=1 npm run test-integration
+$ CI=1 npm run test-integration
+```
 
-For Windows, you'll need Windows 10 with a 1366x768 screen.
-
-When running integration tests, keep the mouse on the edge of the screen and don't touch the mouse
-or keyboard while the tests are running.
+Run one Electron test suite at a time; the suites share a temporary test profile.
 
 ### Package the app
 
@@ -137,8 +129,7 @@ The following optional arguments are available:
    - `portable` - Windows portable app
    - `all` - All platforms (default)
 
-Note: Even with the `--package` option, the auto-update files (.nupkg for Windows,
--darwin.zip for Mac) will always be produced.
+Note: Mac builds always produce a ZIP archive, even with `--package=dmg`.
 
 #### Windows build notes
 
@@ -177,16 +168,14 @@ If packaging from Mac, install system dependencies with Homebrew by running:
 ```
 npm run install-system-deps
 ```
+
 #### Recommended readings to start working in the app
 
-Electron (Framework to make native apps for Windows, OSX and Linux in Javascript):
-https://electronjs.org/docs/tutorial/quick-start
+Electron (framework for desktop apps for Windows, macOS, and Linux in JavaScript):
+https://www.electronjs.org/docs/latest
 
-React.js (Framework to work with Frontend UI):
-https://reactjs.org/docs/getting-started.html
-
-Material UI (React components that implement Google's Material Design.):
-https://material-ui.com/getting-started/installation
+React (the UI library):
+https://react.dev/learn
 
 ### Privacy
 
