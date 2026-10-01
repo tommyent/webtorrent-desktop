@@ -40,12 +40,19 @@ distribute the upstream app and do not include this fork's changes.
 
 ## Screenshots
 
-These screenshots show the upstream app; this fork has updated list controls.
-
 <p align="center">
-  <img src="https://webtorrent.io/img/screenshot-player3.png" alt="screenshot" align="center">
-  <img src="https://webtorrent.io/img/screenshot-main.png" width="612" height="749" alt="screenshot" align="center">
+  <img src="docs/screenshots/player.jpg" width="820" alt="Sintel paused at 03:20 in the WebTorrent player, with playback, casting and subtitle controls">
 </p>
+<p align="center">
+  <img src="docs/screenshots/list.jpg" width="400" alt="The torrent list with paused, seeding and downloading torrents, each with a start/pause switch">
+  <img src="docs/screenshots/remove.jpg" width="400" alt="Two torrents ticked for removal, with a Remove (2) button in the header">
+</p>
+
+Film images in these screenshots come from the app's built-in sample films, licensed under
+[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/): *Sintel*, © copyright Blender
+Foundation | www.sintel.org; *Big Buck Bunny*, (c) copyright 2008, Blender Foundation /
+www.bigbuckbunny.org; *Tears of Steel*, (CC) Blender Foundation | mango.blender.org;
+*Cosmos Laundromat*, (CC) Blender Foundation | gooseberry.blender.org.
 
 ## How to Contribute
 
