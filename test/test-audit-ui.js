@@ -35,6 +35,30 @@ async function main () {
     const downloads = await app.evaluate(({ app }) => app.getPath('downloads'))
     assert.equal(await engine.evaluate(() => require('electron').ipcRenderer.sendSync('getPath', 'downloads')), downloads)
     assert.equal(await engine.evaluate(() => require('electron').ipcRenderer.sendSync('getWindowInfo')), null)
+    // Casting runs here, under a Content-Security-Policy that blocks code built from
+    // strings. protobufjs's own encoders need that, so the CSP once broke casting.
+    // (Code passed to evaluate() is exempt from that rule; protobufjs is not, so it
+    // shows the policy is in force.)
+    const cast = await engine.evaluate(async () => {
+      let protobufEncoder = 'allowed'
+      try {
+        const schema = await require('protobufjs').load(require.resolve('castv2/lib/cast_channel.proto'))
+        schema.lookupType('extensions.api.cast_channel.CastMessage')
+          .encode({ protocolVersion: 0, sourceId: 'a', destinationId: 'b', namespace: 'c', payloadType: 0 })
+      } catch (err) { protobufEncoder = err.name }
+      const { CastMessage } = require('castv2/lib/proto')
+      const connect = CastMessage.serialize({
+        protocolVersion: 0,
+        sourceId: 'sender-0',
+        destinationId: 'receiver-0',
+        namespace: 'urn:x-cast:com.google.cast.tp.connection',
+        payloadType: 0,
+        payloadUtf8: '{"type":"CONNECT"}'
+      })
+      return { protobufEncoder, payload: CastMessage.parse(connect).payloadUtf8 }
+    })
+    assert.deepEqual(cast, { protobufEncoder: 'EvalError', payload: '{"type":"CONNECT"}' }, 'Cast messages encode under the engine CSP')
+    console.log('Audit UI: Cast messages encode under the engine CSP')
     await engine.evaluate(() => window.testOfflineMode())
 
     // Browser links must show a row before a cold/busy engine acknowledges them.
