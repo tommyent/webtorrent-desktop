@@ -51,8 +51,11 @@ test('audio-streaming', function (t) {
     .then(() => app.client.click('.back'))
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'Big Buck Bunny'))
     .then(() => app.client.waitUntilTextExists('.torrent-list', 'Seeding', 60e3))
+    // The seeding row's speed and peer count come from live peers. Masked on macOS,
+    // whose baseline was captured with the mask; other baselines predate it.
     .then(() => setup.screenshotCreateOrCompare(
-      app, t, 'play-torrent-wired-list', '.header'))
+      app, t, 'play-torrent-wired-list', '.header',
+      process.platform === 'darwin' ? '#torrent-wired .metadata > div.ellipsis' : undefined))
     // Forward. Should play again where we left off (should not stay paused)
     .then(() => app.client.click('.forward'))
     .then(() => setup.wait())

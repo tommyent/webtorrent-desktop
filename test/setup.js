@@ -101,7 +101,8 @@ function createApp () {
   }
 
   app.browserWindow = {
-    capturePage: () => app.page.screenshot(),
+    // mask: a selector whose live content (speeds, peers) changes between runs
+    capturePage: mask => app.page.screenshot(mask ? { mask: [app.page.locator(mask)] } : undefined),
     focus: async () => {
       const windowHandle = await app.electronApp.browserWindow(app.page)
       await windowHandle.evaluate((window) => window.focus())
@@ -169,7 +170,7 @@ function endTest (app, t, err) {
 // Takes a screenshot of the app
 // If we already have a reference under test/screenshots, assert that they're the same
 // Otherwise, create the reference screenshot: test/screenshots/<platform>/<name>.png
-function screenshotCreateOrCompare (app, t, name, hoverSelector) {
+function screenshotCreateOrCompare (app, t, name, hoverSelector, maskSelector) {
   const ssDir = path.join(__dirname, 'screenshots', process.platform)
 
   // check that path exists otherwise create it
@@ -191,7 +192,7 @@ function screenshotCreateOrCompare (app, t, name, hoverSelector) {
     // Native focus can restore the OS pointer after Playwright hover events.
     // Reapply intentional hover or pointer parking immediately before capture.
     .then(() => hoverSelector && app.client.moveToObject(hoverSelector))
-    .then(() => app.browserWindow.capturePage())
+    .then(() => app.browserWindow.capturePage(maskSelector))
     .then(function (buffer) {
       if (process.env.UPDATE_SCREENSHOTS === '1') {
         console.log('Saving screenshot ' + ssPath)
