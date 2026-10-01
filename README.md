@@ -49,7 +49,7 @@ These screenshots show the upstream app; this fork has updated list controls.
 ### Get the code
 
 ```
-$ git clone --branch modernization/electron-43-webtorrent-3 https://github.com/tommyent/webtorrent-desktop.git
+$ git clone https://github.com/tommyent/webtorrent-desktop.git
 $ cd webtorrent-desktop
 $ npm ci
 ```
