@@ -51,8 +51,9 @@ async function build () {
   validateOptions(platform)
 
   console.log('Nuking dist/ and build/...')
-  fs.rmSync(DIST_PATH, { recursive: true, force: true })
-  fs.rmSync(BUILD_PATH, { recursive: true, force: true })
+  // Retry: Finder rewrites .DS_Store in an open dist/ while it is being deleted (ENOTEMPTY)
+  fs.rmSync(DIST_PATH, { recursive: true, force: true, maxRetries: 5 })
+  fs.rmSync(BUILD_PATH, { recursive: true, force: true, maxRetries: 5 })
 
   console.log('Build: Transpiling to ES5...')
   cp.execSync('npm run build', {
