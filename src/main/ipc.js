@@ -443,7 +443,13 @@ function init () {
     }
 
     if (!windows.main.win || e.sender !== windows.main.win.webContents) {
+      // The engine loads config.js, which asks for the downloads path synchronously
+      if (name === 'getPath' && windows.webtorrent.win && e.sender === windows.webtorrent.win.webContents) {
+        return oldEmit.call(ipcMain, name, e, ...args)
+      }
       log('ignored %s from unknown renderer', name)
+      // An unanswered sendSync freezes its renderer (it held the engine 30-38 s)
+      e.returnValue = null
       return
     }
 
