@@ -116,6 +116,16 @@ async function main () {
   const mdns = Object.assign(new EventEmitter(), { query () {}, destroy () {} })
   fake('multicast-dns', () => mdns)
   fake('node-ssdp', {})
+  const connections = []
+  class CastClient extends EventEmitter {
+    constructor () { super(); this.client = new EventEmitter() }
+    connect (address, cb) { connections.push(address); cb() }
+    getSessions (cb) { cb(null, []) }
+    launch (receiver, cb) {
+      cb(null, Object.assign(new EventEmitter(), { load (media, opts, cb) { cb() } }))
+    }
+  }
+  fake('castv2-client', { Client: CastClient, DefaultMediaReceiver: { APP_ID: 'test' } })
   const finder = require('chromecasts')()
   const updates = []
   finder.on('update', player => updates.push(player.name))
@@ -128,8 +138,24 @@ async function main () {
       { type: 'TXT', name: instance, data: [Buffer.from('fn=Kitchen TV')] }
     ]
   })
-  assert.deepEqual(finder.players.map(p => [p.name, p.host]), [['Kitchen TV', 'tv-1234.local']])
+  assert.deepEqual(finder.players.map(p => [p.name, p.host, p.port]), [['Kitchen TV', 'tv-1234.local', 8009]])
   assert.deepEqual(updates, ['Google-TV-Streamer-1234', 'Kitchen TV'], 'renamed and announced again')
+
+  // Nonstandard SRV ports reach both the media and receiver-control connection.
+  const group = 'Group-1234._googlecast._tcp.local'
+  mdns.emit('response', {
+    answers: [{ type: 'PTR', name: '_googlecast._tcp.local', data: group }],
+    additionals: [
+      { type: 'TXT', name: group, data: [Buffer.from('fn=Kitchen group')] },
+      { type: 'SRV', name: group, data: { target: 'tv-1234.local', port: 32007 } }
+    ]
+  })
+  assert.equal(finder.players[1].port, 32007)
+  for (const player of finder.players) {
+    await new Promise((resolve, reject) => player.play('http://example.test/a.mp4', err => err ? reject(err) : resolve()))
+    await new Promise((resolve, reject) => player.client(err => err ? reject(err) : resolve()))
+  }
+  assert.deepEqual(connections, [8009, 8009, 32007, 32007].map(port => ({ host: 'tv-1234.local', port })))
 
   // The patcher touches exactly one target, and refuses a file it can't be sure of.
   const patchSource = require('../bin/patch-deps')
@@ -141,7 +167,7 @@ async function main () {
     assert.throws(() => patchSource(source, patch), /x\.js changed/, JSON.stringify(source))
   }
 
-  console.log('Dependency patches passed: metadata after destroy, NAT-PMP error without a request, Windows zip without an old zip, Chromecast names after addresses, cast messages without code generation, ambiguous targets refused')
+  console.log('Dependency patches passed: metadata after destroy, NAT-PMP error without a request, Windows zip without an old zip, Chromecast names and group ports, cast messages without code generation, ambiguous targets refused')
 }
 
 main().catch(err => {

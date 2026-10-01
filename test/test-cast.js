@@ -222,7 +222,29 @@ async function main () {
   await settle()
   assert.equal(engine.activeSession, null)
 
-  console.log('Cast regressions passed: close while connecting, next track, queued track changes, stop, connect timeout, unanswered stop, synchronous connect, racing starts, recast after Back, recast with late delivery')
+  // A speaker and its groups share a host. Each menu choice must reach its own
+  // device reference and keep the same opaque ID through the session updates.
+  const groups = [
+    { name: 'Speaker', host: 'speaker.local' },
+    { name: 'Group A', host: 'speaker.local', port: 32007 },
+    { name: 'Group B', host: 'speaker.local', port: 32032 }
+  ]
+  player.getDevices = () => groups
+  engine.emitDevices()
+  const ids = state.devices.items.filter(d => d.protocol === 'chromecast').map(d => d.id)
+  assert.deepEqual(ids, [8009, 32007, 32032].map(port => `chromecast:speaker.local:${port}`))
+  for (let i = 0; i < groups.length; i++) {
+    Object.assign(state.playing, { infoHash: 'movie', fileIndex: 0 })
+    cast.toggleMenu('chromecast')
+    cast.selectDevice(i)
+    await settle()
+    assert.equal(player.device, groups[i], 'selected group reaches the matching device')
+    assert.equal(state.devices.session.deviceId, ids[i], 'UI receives the selected group session')
+    cast.stop()
+    await settle()
+  }
+
+  console.log('Cast regressions passed: close while connecting, next track, queued track changes, stop, connect timeout, unanswered stop, synchronous connect, racing starts, recast after Back, recast with late delivery, groups on one host')
 }
 main().catch(err => {
   if (engine?.activeSession) engine.stop({ sessionId: engine.activeSession.sessionId })

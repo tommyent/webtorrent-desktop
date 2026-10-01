@@ -31,7 +31,9 @@ const tls = require('node:tls')
 dns.lookup = (host, opts, cb) => setImmediate(() => host.endsWith('.invalid')
   ? cb(Object.assign(new Error('getaddrinfo ENOTFOUND ' + host), { code: 'ENOTFOUND' }))
   : cb(null, [{ address: '192.0.2.7', family: 4 }]))
-tls.connect = () => {
+const tlsPorts = []
+tls.connect = opts => {
+  tlsPorts.push(opts.port)
   const socket = Object.assign(new EventEmitter(), { destroy () {} })
   setImmediate(() => socket.emit('error', Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })))
   return socket
@@ -89,9 +91,16 @@ async function main () {
     host: 'bedroom.local',
     play (url, opts, cb) { const err = tls(); cb(err); this.emit('error', err) }
   })
+  const group = device(chromecast, {
+    name: 'Speaker group',
+    host: 'bedroom.local',
+    port: 32007,
+    play (url, opts, cb) { cb(tls()) }
+  })
   const diagnoses = [
     [errorFirst, 'cast: living-room.invalid does not resolve: ENOTFOUND'],
-    [callbackFirst, 'cast: TLS check 192.0.2.7:8009 failed: ECONNRESET socket hang up']
+    [callbackFirst, 'cast: TLS check 192.0.2.7:8009 failed: ECONNRESET socket hang up'],
+    [group, 'cast: TLS check 192.0.2.7:32007 failed: ECONNRESET socket hang up']
   ]
   for (const [tv, lastLog] of diagnoses) {
     const errors = state.errors.length
@@ -106,6 +115,7 @@ async function main () {
     assert.equal(logs.filter(line => line.includes('failed after')).length, diagnosed + 1, 'diagnosed once per attempt: ' + tv.name)
     assert.ok(logs.some(line => line.startsWith(`cast: connecting to ${tv.name} at ${tv.host}`)))
   }
+  assert.deepEqual(tlsPorts, [8009, 32007], 'diagnostics connect to each advertised port')
 
   console.log = log
   console.log('Cast device regressions passed: this computer hidden from AirPlay, AirPlay 403 explained, Chromecast errors name the device and diagnose once')

@@ -220,7 +220,7 @@ module.exports = class CastEngine {
       player.getDevices().forEach(device => {
         const identity = device.host || (config.IS_TEST && device.name)
         if (!identity) return
-        const id = `${protocol}:${identity}`
+        const id = `${protocol}:${identity}` + (protocol === 'chromecast' ? `:${device.port || 8009}` : '')
         refs.set(id, { protocol, device })
         devices.push({ id, protocol, name: device.name })
       })

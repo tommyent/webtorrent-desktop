@@ -144,6 +144,42 @@ messages.forEach(function(message) {
     player.client = function (cb) {`
   },
   {
+    // Cast groups share their leader's host but advertise a separate SRV port
+    // (webtorrent-desktop-54t). Keep it for both media and receiver connections.
+    file: 'chromecasts/index.js',
+    from: `        casts[name].host = a.data.target
+        emit(casts[name])`,
+    to: `        casts[name].host = a.data.target
+        casts[name].port = a.data.port
+        emit(casts[name])`
+  },
+  {
+    file: 'chromecasts/index.js',
+    from: `    player.name = cst.name
+    player.host = cst.host`,
+    to: `    player.name = cst.name
+    player.port = cst.port || 8009
+    player.host = cst.host`
+  },
+  {
+    file: 'chromecasts/index.js',
+    from: `      client.connect(player.host, function (err) {
+        if (err) return cb(err)
+        player.emit('connect')`,
+    to: `      client.connect({host: player.host, port: player.port}, function (err) {
+        if (err) return cb(err)
+        player.emit('connect')`
+  },
+  {
+    file: 'chromecasts/index.js',
+    from: `      client.connect(player.host, function (err) {
+        if (err) return cb(err)
+        cb(null, client)`,
+    to: `      client.connect({host: player.host, port: player.port}, function (err) {
+        if (err) return cb(err)
+        cb(null, client)`
+  },
+  {
     file: 'chromecasts/index.js',
     from: `        if (text.fn) {
           casts[name].name = text.fn

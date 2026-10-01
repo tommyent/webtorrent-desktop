@@ -175,18 +175,19 @@ function chromecastPlayer () {
   // long, and whether a bare TLS handshake to it works from this process
   // (webtorrent-desktop-8kw)
   function diagnose (device, err) {
-    console.log('cast: %s at %s failed after %d ms: %s %s',
-      device.name, device.host, Date.now() - ret.connectStarted, err.code || '', err.message)
+    const port = device.port || 8009
+    console.log('cast: %s at %s:%d failed after %d ms: %s %s',
+      device.name, device.host, port, Date.now() - ret.connectStarted, err.code || '', err.message)
     require('dns').lookup(device.host, { all: true }, (lookupErr, addresses) => {
       if (lookupErr) return console.log('cast: %s does not resolve: %s', device.host, lookupErr.code)
       for (const { address } of addresses) {
         const started = Date.now()
-        const socket = require('tls').connect({ host: address, port: 8009, rejectUnauthorized: false, timeout: 5000 }, () => {
-          console.log('cast: TLS check %s:8009 OK (%s) in %d ms', address, socket.getProtocol(), Date.now() - started)
+        const socket = require('tls').connect({ host: address, port, rejectUnauthorized: false, timeout: 5000 }, () => {
+          console.log('cast: TLS check %s:%d OK (%s) in %d ms', address, port, socket.getProtocol(), Date.now() - started)
           socket.destroy()
         })
-        socket.on('timeout', () => { console.log('cast: TLS check %s:8009 timed out', address); socket.destroy() })
-        socket.on('error', e => console.log('cast: TLS check %s:8009 failed: %s %s', address, e.code || '', e.message))
+        socket.on('timeout', () => { console.log('cast: TLS check %s:%d timed out', address, port); socket.destroy() })
+        socket.on('error', e => console.log('cast: TLS check %s:%d failed: %s %s', address, port, e.code || '', e.message))
       }
     })
   }
@@ -219,7 +220,7 @@ function chromecastPlayer () {
   function open () {
     const torrentSummary = state.saved.torrents.find((x) => x.infoHash === state.playing.infoHash)
     const device = ret.device
-    console.log('cast: connecting to %s at %s', device.name, device.host)
+    console.log('cast: connecting to %s at %s:%d', device.name, device.host, device.port || 8009)
     ret.connectStarted = Date.now()
     serveSubtitles(subtitlesUrl => {
       device.play(state.server.networkURL + '/' + state.server.filePaths[state.playing.fileIndex], {
