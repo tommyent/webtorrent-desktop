@@ -193,7 +193,43 @@ async function main () {
   torrents.torrentDone(10, { bytesReceived: 0 })
   assert.deepEqual(posters, [10])
 
-  console.log('List action regressions passed: switch during path check, on/off/on, pause all, missing folder, multi-remove, restart before parse, checked rows that leave, fast resume, poster on done')
+  // Unfinished torrents' piece maps are saved while they download, at most once a minute
+  const realNow = Date.now
+  let clock = realNow()
+  Date.now = () => clock
+  const mapState = { saved: { torrents: [{ torrentKey: 20, infoHash: 'f'.repeat(40), status: 'downloading', completed: false }] }, dock: {} }
+  const saver = new TorrentController(mapState)
+  const saves = () => dispatched.filter(action => action === 'stateSave').length
+  const tick = (seconds, downloaded) => {
+    clock += seconds * 1000
+    saver.torrentProgress({ torrents: [{ torrentKey: 20, ready: true, done: false, downloaded }] })
+  }
+  const before = saves()
+  tick(30, 100)
+  assert.equal(saves(), before, 'not before a minute has passed')
+  tick(31, 100)
+  assert.equal(saves(), before + 1, 'downloading for a minute: saved')
+  tick(30, 200)
+  assert.equal(saves(), before + 1, 'at most once a minute')
+  tick(31, 200)
+  assert.equal(saves(), before + 2, 'new data a minute later: saved')
+  tick(120, 200)
+  assert.equal(saves(), before + 2, 'nothing new, nothing saved')
+  mapState.saved.torrents.push(
+    { torrentKey: 21, infoHash: 'e'.repeat(40), status: 'downloading', completed: false },
+    { torrentKey: 22, infoHash: 'd'.repeat(40), status: 'seeding', completed: true })
+  clock += 120 * 1000
+  saver.torrentProgress({
+    torrents: [
+      { torrentKey: 20, ready: true, done: false, downloaded: 200 },
+      { torrentKey: 21, ready: false, done: false, downloaded: 500 },
+      { torrentKey: 22, ready: true, done: true, downloaded: 900 }
+    ]
+  })
+  assert.equal(saves(), before + 2, 'torrents still verifying or finished are not counted')
+  Date.now = realNow
+
+  console.log('List action regressions passed: switch during path check, on/off/on, pause all, missing folder, multi-remove, restart before parse, checked rows that leave, fast resume, poster on done, periodic map save')
 }
 
 main().catch(err => {

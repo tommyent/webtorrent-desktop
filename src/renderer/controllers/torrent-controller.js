@@ -4,9 +4,15 @@ const TorrentSummary = require('../lib/torrent-summary')
 const sound = require('../lib/sound')
 const { dispatch } = require('../lib/dispatcher')
 
+// Fast resume trusts the saved piece map, and a crash or force quit keeps only
+// what was last saved: save unfinished torrents' maps this often while they download
+const MAP_SAVE_INTERVAL = 60 * 1000
+
 module.exports = class TorrentController {
   constructor (state) {
     this.state = state
+    this.mapSavedAt = Date.now()
+    this.mapSavedBytes = 0
   }
 
   torrentParsed (torrentKey, infoHash, magnetURI) {
@@ -154,6 +160,15 @@ module.exports = class TorrentController {
         torrentSummary.status = 'downloading'
       }
     })
+
+    const bytes = progressInfo.torrents
+      .filter(p => p.ready && !p.done)
+      .reduce((sum, p) => sum + p.downloaded, 0)
+    if (bytes !== this.mapSavedBytes && Date.now() - this.mapSavedAt >= MAP_SAVE_INTERVAL) {
+      this.mapSavedAt = Date.now()
+      this.mapSavedBytes = bytes
+      dispatch('stateSave')
+    }
 
     // TODO: Find an efficient way to re-enable this line, which allows subtitle
     //       files which are completed after a video starts to play to be added
