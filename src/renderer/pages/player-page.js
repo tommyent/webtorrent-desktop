@@ -9,6 +9,7 @@ const Playlist = require('../lib/playlist')
 const { dispatch, dispatcher } = require('../lib/dispatcher')
 const config = require('../lib/config')
 const { calculateEta } = require('../lib/time')
+const audioTrackLabel = require('../lib/track-label')
 
 // Shows a streaming video player. Standard features + Chromecast + Airplay
 module.exports = class Player extends React.Component {
@@ -211,7 +212,7 @@ function renderMedia (state) {
       const tracks = []
       for (let i = 0; mediaElement.audioTracks && i < mediaElement.audioTracks.length; i++) {
         tracks.push({
-          label: mediaElement.audioTracks[i].label || `Track ${i + 1}`,
+          label: audioTrackLabel(mediaElement.audioTracks[i], i),
           language: mediaElement.audioTracks[i].language
         })
       }

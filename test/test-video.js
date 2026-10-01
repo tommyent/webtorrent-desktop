@@ -13,6 +13,9 @@ test('video-streaming', function (t) {
     .then(() => setup.wait())
     .then(() => app.client.click('.icon.play'))
     .then(() => waitForVideoReady(app))
+    // Its audio track is labeled "GPAC ISO Audio Handler" in the file
+    .then(() => app.page.evaluate(() => window.state.playing.audioTracks.tracks.map(track => track.label)))
+    .then(labels => t.deepEqual(labels.map(label => /^Audio 1( \(.+\))?$/.test(label)), [true], 'audio track named ' + labels))
     // Pause, seek to two seconds, and wait for that frame to load.
     .then(() => pause(app))
     .then(() => app.webContents.executeJavaScript('dispatch("skipTo", 2)'))

@@ -181,6 +181,14 @@ async function main () {
   list.renderTorrentDetails({ files: [{ path: 'a.mp4' }, { path: '.____padding_file/0' }, { path: 'b.mp4' }] })
   assert.deepEqual(indices, [0, 2])
 
+  // Audio tracks named after the tool that made the file get a readable name
+  const audioTrackLabel = require('../src/renderer/lib/track-label')
+  assert.equal(audioTrackLabel({ label: 'GPAC ISO Audio Handler', language: 'und' }, 0), 'Audio 1')
+  assert.equal(audioTrackLabel({ label: 'SoundHandler', language: 'eng' }, 1), 'Audio 2 (English)')
+  assert.equal(audioTrackLabel({ label: 'Core Media Audio', language: 'ja' }, 0), 'Audio 1 (Japanese)')
+  assert.equal(audioTrackLabel({ label: '', language: '' }, 2), 'Audio 3')
+  assert.equal(audioTrackLabel({ label: "Director's commentary", language: 'en' }, 1), "Director's commentary")
+
   // Sorting preserves added order within groups, including paused completions
   // after a restart, and doesn't rearrange the saved list.
   const torrents = [
@@ -321,6 +329,6 @@ async function main () {
   } finally {
     await new Promise(resolve => client.destroy(resolve))
   }
-  console.log('Audit regressions passed: subtitles, grants, symlinks, loopback, origins, hosts, tokens, revocation and casting proxy')
+  console.log('Audit regressions passed: subtitles, grants, symlinks, loopback, origins, hosts, tokens, revocation, casting proxy and audio track names')
 }
 main().catch(err => { console.error(err); process.exitCode = 1 })
