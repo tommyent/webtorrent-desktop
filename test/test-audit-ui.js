@@ -195,8 +195,8 @@ async function main () {
     assert.equal(await page.getByRole('slider', { name: 'Volume' }).inputValue(), '0')
     await page.evaluate(() => window.dispatch('backToList'))
     assert.equal(await page.evaluate(() => navigator.mediaSession.metadata), null)
-    for (const name of ['Start streaming', 'Remove torrent']) {
-      assert(await page.getByRole('button', { name, exact: true, includeHidden: true }).count() > 0, name + ' has a spoken name')
+    for (const [role, name] of [['button', 'Start streaming'], ['checkbox', 'Select monitor-test.mp4 for removal'], ['switch', 'Torrent activity for monitor-test.mp4']]) {
+      assert(await page.getByRole(role, { name, exact: true, includeHidden: true }).count() > 0, name + ' has a spoken name')
     }
 
     // Completed torrents sort ahead of newer additions, even while paused.

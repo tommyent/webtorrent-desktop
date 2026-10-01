@@ -1,7 +1,6 @@
 const React = require('react')
 const prettyBytes = require('prettier-bytes')
 
-const { Checkbox } = require('../components/controls')
 const { LinearProgress } = require('../components/controls')
 
 const TorrentSummary = require('../lib/torrent-summary')
@@ -82,6 +81,7 @@ module.exports = class TorrentList extends React.Component {
       >
         {this.renderTorrentMetadata(torrentSummary)}
         {infoHash ? this.renderTorrentButtons(torrentSummary) : null}
+        {this.renderRemovalBox(torrentSummary)}
         {isSelected ? this.renderTorrentDetails(torrentSummary) : null}
         <hr />
       </div>
@@ -107,7 +107,7 @@ module.exports = class TorrentList extends React.Component {
       progElems = [getErrorMessage(torrentSummary)]
     } else if (torrentSummary.status !== 'paused' && prog) {
       progElems = [
-        renderDownloadCheckbox(),
+        renderActiveSwitch(),
         renderTorrentStatus(),
         renderProgressBar(),
         renderPercentProgress(),
@@ -118,7 +118,7 @@ module.exports = class TorrentList extends React.Component {
       ]
     } else {
       progElems = [
-        renderDownloadCheckbox(),
+        renderActiveSwitch(),
         renderTorrentStatus()
       ]
     }
@@ -130,25 +130,19 @@ module.exports = class TorrentList extends React.Component {
 
     return (<div key='metadata' className='metadata'>{elements}</div>)
 
-    function renderDownloadCheckbox () {
-      const infoHash = torrentSummary.infoHash
-      const isActive = ['downloading', 'seeding'].includes(torrentSummary.status)
+    // On (green) while the torrent runs, including while it starts
+    function renderActiveSwitch () {
+      const isActive = ['new', 'downloading', 'seeding'].includes(torrentSummary.status)
       return (
-        <Checkbox
-          aria-label={'Download ' + torrentSummary.name}
-          key='download-button'
-          className={'control download ' + torrentSummary.status}
-          style={{
-            display: 'inline-block',
-            width: 32
-          }}
-          iconStyle={{
-            width: 20,
-            height: 20
-          }}
-          checked={isActive}
-          onClick={stopPropagation}
-          onCheck={dispatcher('toggleTorrent', infoHash)}
+        <button
+          type='button'
+          role='switch'
+          key='active-switch'
+          className='torrent-switch'
+          aria-checked={isActive}
+          aria-label={'Torrent activity for ' + name}
+          title={isActive ? 'Pause' : 'Start'}
+          onClick={dispatcher('toggleTorrent', torrentSummary.torrentKey)}
         />
       )
     }
@@ -225,7 +219,9 @@ module.exports = class TorrentList extends React.Component {
         else status = 'Downloading'
       } else if (torrentSummary.status === 'seeding') {
         status = 'Seeding'
-      } else { // torrentSummary.status is 'new' or something unexpected
+      } else if (torrentSummary.status === 'new') {
+        status = 'Starting…'
+      } else {
         status = ''
       }
       return (<span key='torrent-status'>{status}</span>)
@@ -257,17 +253,26 @@ module.exports = class TorrentList extends React.Component {
     return (
       <div className='torrent-controls'>
         {playButton}
-        <button
-          type='button'
-          key='delete-button'
-          className='icon delete'
-          title='Remove torrent'
-          aria-label='Remove torrent'
-          onClick={dispatcher('confirmDeleteTorrent', infoHash, false)}
-        >
-          close
-        </button>
       </div>
+    )
+  }
+
+  // Checked rows (shown as an X) are removed together from the header's Remove button
+  renderRemovalBox (torrentSummary) {
+    const isMarked = this.props.state.removalSelection.includes(torrentSummary.torrentKey)
+    return (
+      <button
+        type='button'
+        role='checkbox'
+        key='remove-select'
+        className='icon remove-select'
+        aria-checked={isMarked}
+        aria-label={'Select ' + (torrentSummary.name || 'torrent') + ' for removal'}
+        title='Select for removal'
+        onClick={dispatcher('toggleRemovalSelection', torrentSummary.torrentKey)}
+      >
+        {isMarked ? 'close' : ''}
+      </button>
     )
   }
 
@@ -413,10 +418,6 @@ module.exports = class TorrentList extends React.Component {
       </div>
     )
   }
-}
-
-function stopPropagation (e) {
-  e.stopPropagation()
 }
 
 function getErrorMessage (torrentSummary) {

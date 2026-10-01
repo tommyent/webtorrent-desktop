@@ -33,6 +33,7 @@ function getDefaultState () {
       title: config.APP_WINDOW_TITLE
     },
     selectedInfoHash: null,
+    removalSelection: [], // torrentKeys checked for the header's Remove button
     playing: getDefaultPlayState(),
     devices: {},
     dock: {

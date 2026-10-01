@@ -3,7 +3,8 @@ module.exports = {
   getTorrentPath,
   getByKey,
   getTorrentId,
-  getFileOrFolder
+  getFileOrFolder,
+  getRemovalSelection
 }
 
 const api = require('./api')
@@ -32,8 +33,8 @@ function getTorrentId (torrentSummary) {
   const s = torrentSummary
   if (s.torrentFileName) { // Load torrent file from disk
     return getTorrentPath(s)
-  } else { // Load torrent from DHT
-    return s.magnetURI || s.infoHash
+  } else { // Load torrent from DHT, or what was added if it hasn't been parsed yet
+    return s.magnetURI || s.infoHash || s.addedTorrentId
   }
 }
 
@@ -55,4 +56,10 @@ function getFileOrFolder (torrentSummary) {
   if (!ts.path || !ts.files || ts.files.length === 0) return null
   const dirname = ts.files[0].path.split(api.path.sep)[0]
   return api.path.join(ts.path, dirname)
+}
+
+// The rows checked for the header's Remove button that are still in the list
+// (a row can also leave as a rejected duplicate, an error or a private magnet)
+function getRemovalSelection (state) {
+  return state.removalSelection.filter(key => state.saved.torrents.some(t => t.torrentKey === key))
 }

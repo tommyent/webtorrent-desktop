@@ -2,11 +2,13 @@ const React = require('react')
 
 const { dispatch, dispatcher } = require('../lib/dispatcher')
 const config = require('../lib/config')
+const { getRemovalSelection } = require('../lib/torrent-summary')
 
 class Header extends React.Component {
   render () {
     const state = this.props.state
     const loc = state.location
+    const removalCount = getRemovalSelection(state).length
     return (
       <div
         className='header'
@@ -39,6 +41,16 @@ class Header extends React.Component {
           </button>
         </div>
         <div className='nav right float-right'>
+          {loc.url() === 'home' && removalCount > 0 && (
+            <button
+              type='button'
+              className='remove-selected'
+              aria-label={'Remove ' + removalCount + ' selected torrents'}
+              onClick={dispatcher('confirmRemoveSelected')}
+            >
+              Remove ({removalCount})
+            </button>
+          )}
           {loc.url() === 'home' && (
             <select
               className='torrent-sort'
@@ -60,6 +72,8 @@ class Header extends React.Component {
   getTitle () {
     if (config.PLATFORM !== 'darwin') return null
     const state = this.props.state
+    // The Remove button needs the room; the list's title is just the app name
+    if (state.location.url() === 'home' && getRemovalSelection(state).length > 0) return null
     return (<div className='title ellipsis'>{state.window.title}</div>)
   }
 

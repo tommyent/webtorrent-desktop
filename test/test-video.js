@@ -27,9 +27,8 @@ test('video-streaming', function (t) {
     .then(() => app.webContents.executeJavaScript('dispatch("escapeBack")'))
     .then(() => setup.wait())
     // Delete Big Buck Bunny
-    .then(() => app.client.moveToObject('.torrent'))
-    .then(() => setup.wait())
-    .then(() => app.client.click('.icon.delete'))
+    .then(() => app.client.click('.torrent .remove-select'))
+    .then(() => app.client.click('.header .remove-selected'))
     .then(() => setup.wait())
     .then(() => app.client.click('.control.ok'))
     // Take another screenshot to verify that the window resized correctly

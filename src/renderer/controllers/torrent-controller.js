@@ -36,6 +36,7 @@ module.exports = class TorrentController {
 
     torrentSummary.infoHash = infoHash
     torrentSummary.magnetURI = magnetURI
+    delete torrentSummary.addedTorrentId // parsed: keep the original input out of saved state
     dispatch('update')
   }
 

@@ -216,6 +216,25 @@ table {
   font: 12px system-ui, sans-serif;
 }
 
+.header .remove-selected {
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: #e53935;
+  color: #fff;
+  font: bold 12px system-ui, sans-serif;
+}
+
+.header .remove-selected:hover {
+  background: #f44336;
+}
+
+.header .remove-selected:focus-visible {
+  outline: 2px solid #63b5ff;
+  outline-offset: 2px;
+}
+
 .header .torrent-sort:hover {
   background-color: rgba(255, 255, 255, 0.12);
 }
@@ -381,7 +400,7 @@ textarea,
   top: 20px;
   left: 15px;
   right: 15px;
-  width: calc(100% - 30px);
+  width: calc(100% - 65px); /* leave room for the removal box */
   text-shadow: rgba(0, 0, 0, 0.5) 0 0 4px;
 }
 
@@ -411,15 +430,63 @@ textarea,
   font-size: 55px;
 }
 
-.torrent .delete {
-  position: absolute;
-  top: 38px;
-  right: 12px;
+/* Start/pause: a switch, green while the torrent runs */
+.torrent .torrent-switch {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  margin-right: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.35);
+  vertical-align: -3px;
+  transition: background 0.15s ease-out;
 }
 
-.torrent .download {
-  vertical-align: -0.4em;
-  margin-left: -2px;
+.torrent .torrent-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease-out;
+}
+
+.torrent .torrent-switch[aria-checked='true'] {
+  background: #43a047;
+}
+
+.torrent .torrent-switch[aria-checked='true']::after {
+  transform: translateX(14px);
+}
+
+.torrent .torrent-switch:focus-visible,
+.torrent .remove-select:focus-visible {
+  outline: 2px solid #63b5ff;
+  outline-offset: 2px;
+}
+
+/* Selection for the header's Remove button; checked shows an X */
+.torrent .remove-select {
+  position: absolute;
+  top: 37px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 4px;
+  font-size: 20px;
+  line-height: 20px;
+}
+
+.torrent .remove-select[aria-checked='true'] {
+  background: #e53935;
+  border-color: #e53935;
+  opacity: 1;
 }
 
 .torrent .buttons .radial-progress {

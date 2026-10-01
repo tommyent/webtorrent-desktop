@@ -237,7 +237,7 @@ async function main () {
   assert.deepEqual(pendingState.saved.torrents, [pending], 'paused duplicate leaves no pending row')
 
   const abc = ['a', 'b', 'c'].map(c => ({ infoHash: c.repeat(40), path: dir, files: [{ path: c }] }))
-  const listController = new TorrentListController({ saved: { torrents: [...abc] }, location: { clearForward () {} } })
+  const listController = new TorrentListController({ saved: { torrents: [...abc] }, removalSelection: [], location: { clearForward () {} } })
   const removals = [listController.deleteTorrent(abc[0].infoHash, true), listController.deleteTorrent(abc[1].infoHash, true)]
   trashWaits.forEach(resolve => resolve())
   await Promise.all(removals)

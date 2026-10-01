@@ -8,6 +8,12 @@ const { isMagnetLink } = require('../lib/torrent-player')
 
 const instantIoRegex = /^(https:\/\/)?instant\.io\/#/
 
+// The latest start request per torrent; switching it off (or on again) while its
+// folder is being checked makes the older request stale.
+const pendingStarts = new WeakMap()
+// A torrent counts as on from the moment it's switched on
+const ACTIVE = ['new', 'downloading', 'seeding']
+
 // Controls the torrent list: creating, adding, deleting, & manipulating torrents
 module.exports = class TorrentListController {
   constructor (state) {
@@ -41,7 +47,8 @@ module.exports = class TorrentListController {
 
     // Acknowledge the add immediately, even while the hidden engine starts.
     // Unparsed rows are already excluded from saved state.
-    this.state.saved.torrents.unshift({ torrentKey, status: 'new', name })
+    // addedTorrentId lets the switch restart it before the engine has parsed it.
+    this.state.saved.torrents.unshift({ torrentKey, status: 'new', name, addedTorrentId: torrentId })
 
     api.torrent.start(torrentKey, torrentId, path)
 
@@ -102,10 +109,14 @@ module.exports = class TorrentListController {
     if (!fileOrFolder) return start()
 
     // Existing torrent: check that the path is still there
+    const request = {}
+    pendingStarts.set(s, request)
     api.torrent.checkPath(fileOrFolder)
       .then(exists => {
+        if (pendingStarts.get(s) !== request) return // paused, removed, or restarted since
         if (exists) return start()
         s.error = 'path-missing'
+        s.status = 'paused'
         dispatch('backToList')
       })
 
@@ -138,11 +149,7 @@ module.exports = class TorrentListController {
 
   pauseAllTorrents () {
     this.state.saved.torrents.forEach((torrentSummary) => {
-      if (torrentSummary.status === 'downloading' ||
-          torrentSummary.status === 'seeding') {
-        torrentSummary.status = 'paused'
-        api.torrent.stop(torrentSummary.torrentKey)
-      }
+      if (ACTIVE.includes(torrentSummary.status)) this.pauseTorrent(torrentSummary, false)
     })
     sound.play('DISABLE')
   }
@@ -158,6 +165,7 @@ module.exports = class TorrentListController {
   }
 
   pauseTorrent (torrentSummary, playSound) {
+    pendingStarts.delete(torrentSummary)
     torrentSummary.status = 'paused'
     api.torrent.stop(torrentSummary.torrentKey)
 
@@ -166,7 +174,8 @@ module.exports = class TorrentListController {
 
   prioritizeTorrent (infoHash) {
     this.state.saved.torrents
-      .filter(torrent => ['downloading', 'seeding'].includes(torrent.status)) // Active torrents only.
+      // Active torrents only; resuming needs the infoHash (saved across restarts).
+      .filter(torrent => ACTIVE.includes(torrent.status) && torrent.infoHash)
       .forEach((torrent) => { // Pause all active torrents except the one that started playing.
         if (infoHash === torrent.infoHash) return
 
@@ -183,7 +192,9 @@ module.exports = class TorrentListController {
     console.log('Playback Priority: resuming paused torrents')
     if (!this.state.saved.torrentsToResume || !this.state.saved.torrentsToResume.length) return
     this.state.saved.torrentsToResume.forEach((infoHash) => {
-      this.toggleTorrent(infoHash)
+      // Skip one the user removed or switched back on meanwhile
+      const torrentSummary = TorrentSummary.getByKey(this.state, infoHash)
+      if (torrentSummary && torrentSummary.status === 'paused') this.toggleTorrent(infoHash)
     })
 
     // reset paused torrents
@@ -208,6 +219,29 @@ module.exports = class TorrentListController {
     }
   }
 
+  // The header's Remove button: the rows checked in the removal column
+  toggleRemovalSelection (torrentKey) {
+    const selection = this.state.removalSelection
+    this.state.removalSelection = selection.includes(torrentKey)
+      ? selection.filter(key => key !== torrentKey)
+      : [...selection, torrentKey]
+  }
+
+  confirmRemoveSelected () {
+    this.state.modal = {
+      id: 'remove-torrent-modal',
+      torrentKeys: TorrentSummary.getRemovalSelection(this.state),
+      deleteData: false
+    }
+  }
+
+  async deleteTorrents (torrentKeys, deleteData) {
+    for (const torrentKey of torrentKeys) {
+      // Skip rows another removal already took out
+      if (TorrentSummary.getByKey(this.state, torrentKey)) await this.deleteTorrent(torrentKey, deleteData)
+    }
+  }
+
   confirmDeleteAllTorrents (deleteData) {
     this.state.modal = {
       id: 'delete-all-torrents-modal',
@@ -215,12 +249,11 @@ module.exports = class TorrentListController {
     }
   }
 
-  // TODO: use torrentKey, not infoHash
+  // Takes a torrentKey or infoHash
   async deleteTorrent (infoHash, deleteData) {
-    const index = this.state.saved.torrents.findIndex((x) => x.infoHash === infoHash)
+    const summary = TorrentSummary.getByKey(this.state, infoHash)
 
-    if (index > -1) {
-      const summary = this.state.saved.torrents[index]
+    if (summary) {
       try { await deleteTorrentFile(summary, deleteData) } catch (err) {
         dispatch('error', err)
         return
@@ -230,6 +263,7 @@ module.exports = class TorrentListController {
       // have changed the list while this one waited for the Trash.
       const current = this.state.saved.torrents.indexOf(summary)
       if (current > -1) this.state.saved.torrents.splice(current, 1)
+      this.state.removalSelection = this.state.removalSelection.filter(key => key !== summary.torrentKey)
       dispatch('stateSave')
 
       // prevent user from going forward to a deleted torrent
@@ -247,7 +281,7 @@ module.exports = class TorrentListController {
     }
 
     for (const summary of [...this.state.saved.torrents]) {
-      await this.deleteTorrent(summary.infoHash, deleteData)
+      await this.deleteTorrent(summary.torrentKey, deleteData)
     }
     dispatch('stateSave')
 
@@ -303,6 +337,7 @@ function moveItemToTrash (torrentSummary) {
 }
 
 async function deleteTorrentFile (torrentSummary, deleteData) {
+  pendingStarts.delete(torrentSummary)
   api.torrent.stop(torrentSummary.torrentKey)
 
   if (deleteData) await moveItemToTrash(torrentSummary)
