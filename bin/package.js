@@ -301,6 +301,12 @@ function buildDarwin (cb) {
       path.join(resourcesPath, path.basename(config.APP_FILE_ICON) + '.icns')
     )
 
+    // Electron's license notices (Chromium, FFmpeg and the rest) must ship with
+    // the app, but the zip and DMG hold only the .app: copy them inside, before signing.
+    for (const file of ['LICENSE', 'LICENSES.chromium.html']) {
+      fs.copyFileSync(path.join(buildPath[0], file), path.join(resourcesPath, file))
+    }
+
     if (process.platform === 'darwin') {
       if (argv.sign) {
         signApp(function (err) {
