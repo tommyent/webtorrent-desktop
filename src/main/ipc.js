@@ -48,6 +48,7 @@ function assertMainSender (event) {
 
 function init () {
   app.on('webtorrentStopped', () => { messageQueueMainToWebTorrent.length = 0 })
+  ipcMain.on('engineStartupFailed', (e, message) => windows.webtorrent.fail(message))
   let restartScheduled = false
   const relaunch = () => app.relaunch()
   app.on('quitCancelled', () => {
@@ -73,6 +74,9 @@ function init () {
   ipcMain.once('ipcReadyWebTorrent', e => {
     if (windows.webtorrent.failed) return
     app.ipcReadyWebTorrent = true
+    // Apply the latest saved limits before any queued torrent starts, including
+    // preferences changed while the engine was still bootstrapping.
+    windows.webtorrent.send('wt-set-bandwidth', require('../renderer/lib/bandwidth').options(modules.stateStore.getSaved().prefs))
     log('sending %d queued messages from the main win to the webtorrent window',
       messageQueueMainToWebTorrent.length)
     messageQueueMainToWebTorrent.forEach(message => {
@@ -135,6 +139,13 @@ function init () {
     assertMainSender(e)
     if (!modules.stateStore) throw new Error('State store is not ready')
     return modules.stateStore.getSaved()
+  })
+  ipcMain.handle('getBandwidthLimits', e => {
+    if (!windows.webtorrent.win || e.sender !== windows.webtorrent.win.webContents) {
+      throw new Error('Rejected IPC from unknown renderer')
+    }
+    if (!modules.stateStore) throw new Error('State store is not ready')
+    return require('../renderer/lib/bandwidth').options(modules.stateStore.getSaved().prefs)
   })
   ipcMain.handle('stateSave', async (e, saved) => {
     assertMainSender(e)
@@ -464,7 +475,7 @@ function init () {
       return
     }
 
-    if (name === 'ipcReadyWebTorrent') {
+    if (name === 'ipcReadyWebTorrent' || name === 'engineStartupFailed') {
       if (windows.webtorrent.win && e.sender === windows.webtorrent.win.webContents) {
         return oldEmit.call(ipcMain, name, e, ...args)
       }

@@ -14,6 +14,10 @@ process.env.NODE_ENV = 'test'
 const ipc = new EventEmitter()
 const sent = []
 ipc.send = (name, ...args) => sent.push([name, ...args])
+ipc.invoke = async name => {
+  assert.equal(name, 'getBandwidthLimits')
+  return { downloadLimit: 8192, uploadLimit: 4096 }
+}
 const electron = require.resolve('electron')
 require.cache[electron] = { id: electron, filename: electron, loaded: true, exports: { ipcRenderer: ipc } }
 global.window = { addEventListener () {} }
@@ -46,6 +50,7 @@ async function seedPack (seeder, name, fill) {
 async function main () {
   require('../src/renderer/webtorrent')
   await until('engine', () => sent.some(([name]) => name === 'ipcReadyWebTorrent'))
+  assert.deepEqual([window.client._downloadLimit, window.client._uploadLimit], [8192, 4096], 'engine starts with saved limits')
   const { default: WebTorrent } = await import('webtorrent')
   const seeder = new WebTorrent(opts)
   const first = await seedPack(seeder, 'first', 'x')
@@ -65,6 +70,12 @@ async function main () {
   // a ticked, b and c not: a finishes, including the piece it shares with b
   const torrent = await start(1, first, [true, false, false])
   const [a, b, c] = ['a.bin', 'b.bin', 'c.bin'].map(name => fileNamed(torrent, name))
+  await until('limited peer connected', () => torrent.wires.length > 0)
+  await wait(500)
+  assert.equal(a.done, false, 'limited TCP transfer has not finished the 40 KB file in half a second')
+  ipc.emit('wt-set-bandwidth', {}, { downloadLimit: -1, uploadLimit: -1 })
+  assert.equal(window.client.throttleGroups.down.getEnabled(), false)
+  assert.equal(window.client.throttleGroups.up.getEnabled(), false)
   const done = await until('done for the ticked file', () => messages('wt-done', 1)[0])
   assert.equal(done[2].complete, false, 'done for the user, not complete')
   assert.equal(a.done, true)

@@ -37,6 +37,10 @@ async function load () {
   const state = { saved }
   require('./migrations').run(state)
   if (!saved.prefs.globalTrackers) saved.prefs.globalTrackers = []
+  for (const key of ['downloadLimitKiB', 'uploadLimitKiB']) {
+    saved.prefs[key] ??= 0
+    try { require('../renderer/lib/bandwidth').toBytes(saved.prefs[key]) } catch { saved.prefs[key] = 0 }
+  }
   // Tests keep the same prefs on every machine, whatever players it has
   if (!config.IS_TEST) defaultExternalPlayer(saved.prefs)
   return saved
@@ -85,6 +89,8 @@ function setupSavedState () {
       autoAddTorrents: false,
       torrentsFolderPath: '',
       highestPlaybackPriority: true,
+      downloadLimitKiB: 0,
+      uploadLimitKiB: 0,
       globalTrackers: []
     },
     torrents: config.DEFAULT_TORRENTS.map(createTorrentObject),

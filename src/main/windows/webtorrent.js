@@ -1,5 +1,6 @@
 const webtorrent = module.exports = {
   init,
+  fail,
   send,
   show,
   toggleDevTools,
@@ -38,16 +39,7 @@ function init () {
   win.webContents.on('will-navigate', event => event.preventDefault())
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.session.setPermissionRequestHandler((contents, permission, respond) => respond(false))
-  win.webContents.on('render-process-gone', (event, details) => {
-    if (app.isQuitting || webtorrent.failed) return
-    webtorrent.failed = true
-    app.ipcReadyWebTorrent = false
-    app.emit('webtorrentStopped')
-    require('../log')('Torrent engine stopped:', details.reason, details.exitCode)
-    const notify = () => require('./main').dispatch('engineStopped')
-    if (app.ipcReady) notify()
-    else app.once('ipcReady', notify)
-  })
+  win.webContents.on('render-process-gone', (event, details) => fail(details.reason, details.exitCode))
   win.loadURL(config.WINDOW_WEBTORRENT)
 
   // Prevent killing the WebTorrent process
@@ -58,6 +50,17 @@ function init () {
     e.preventDefault()
     win.hide()
   })
+}
+
+function fail (reason, exitCode) {
+  if (app.isQuitting || webtorrent.failed) return
+  webtorrent.failed = true
+  app.ipcReadyWebTorrent = false
+  app.emit('webtorrentStopped')
+  require('../log')('Torrent engine stopped:', reason, exitCode)
+  const notify = () => require('./main').dispatch('engineStopped')
+  if (app.ipcReady) notify()
+  else app.once('ipcReady', notify)
 }
 
 function show () {

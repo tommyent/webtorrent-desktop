@@ -48,6 +48,7 @@ exports.assertSelected = (filePath, ...purposes) => {
 }
 exports.validateSaved = saved => {
   if (!saved || !saved.prefs || !Array.isArray(saved.torrents)) throw new TypeError('Invalid saved state')
+  require('../renderer/lib/bandwidth').options(saved.prefs)
   for (const key of ['externalPlayerPath', 'downloadPath', 'torrentsFolderPath']) {
     const value = saved.prefs[key]
     if (value && value !== initialPrefs[key] && !selected.get(key)?.has(path.resolve(value))) {

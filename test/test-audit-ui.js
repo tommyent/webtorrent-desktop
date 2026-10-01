@@ -7,11 +7,12 @@ const { _electron: electron } = require('playwright')
 async function main () {
   require('./setup').resetTestDataDir()
   const executablePath = process.argv[2]
-  const app = await electron.launch({
+  const launchOptions = {
     executablePath,
     args: executablePath ? ['--test'] : [path.join(__dirname, '..'), '--test'],
     env: { ...process.env, NODE_ENV: 'test' }
-  })
+  }
+  const app = await electron.launch(launchOptions)
   const errors = []
   app.on('window', page => page.on('pageerror', err => errors.push(err.message)))
   try {
@@ -230,6 +231,35 @@ async function main () {
       await app.evaluate(({ clipboard }) => { clipboard.writeText = global.originalWriteText })
     }
     console.log('Audit UI: persistent errors, copy, dismissal and focus passed')
+    await page.evaluate(() => window.dispatch('preferences'))
+    const downloadLimit = page.getByRole('spinbutton', { name: 'Download limit (KiB/s)' })
+    const uploadLimit = page.getByRole('spinbutton', { name: 'Upload limit (KiB/s)' })
+    await downloadLimit.fill('128')
+    await downloadLimit.press('Enter')
+    await uploadLimit.fill('64')
+    await uploadLimit.press('Tab')
+    await engine.waitForFunction(() => window.client._downloadLimit === 131072 && window.client._uploadLimit === 65536)
+    await downloadLimit.fill('-1')
+    await downloadLimit.press('Tab')
+    assert.equal(await downloadLimit.evaluate(el => el.validity.valid), false)
+    assert.equal(await engine.evaluate(() => window.client._downloadLimit), 131072, 'invalid input does not change the engine')
+    await assert.rejects(page.evaluate(async () => {
+      const saved = await window.webtorrent.state.load()
+      saved.prefs.uploadLimitKiB = Infinity
+      await window.webtorrent.state.save(saved)
+    }), /Bandwidth limits/)
+    await downloadLimit.fill('0')
+    await downloadLimit.press('Enter')
+    await engine.waitForFunction(() => !window.client.throttleGroups.down.getEnabled())
+    await downloadLimit.fill('96')
+    await downloadLimit.press('Enter')
+    await uploadLimit.fill('48')
+    await uploadLimit.press('Enter')
+    await engine.waitForFunction(() => window.client._downloadLimit === 98304 && window.client._uploadLimit === 49152)
+    const prefs = await page.evaluate(() => window.webtorrent.state.load().then(saved => saved.prefs))
+    assert.deepEqual([prefs.downloadLimitKiB, prefs.uploadLimitKiB], [96, 48])
+    await page.evaluate(() => window.dispatch('backToList'))
+    console.log('Audit UI: live bandwidth changes, unlimited and invalid-input rejection passed')
     const file = path.join(__dirname, 'resources', 'monitor-test.mp4')
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialogSync = () => [file] }, file)
     // A pick for another purpose, here the download folder, doesn't allow seeding.
@@ -393,5 +423,33 @@ async function main () {
       })
     }
   } finally { await app.close() }
+  // A fresh engine must start with saved limits, before torrents resume.
+  const restarted = await electron.launch(launchOptions)
+  try {
+    let engine
+    for (let i = 0; i < 150 && !engine; i++) {
+      for (const page of restarted.windows()) {
+        if (await page.title() === 'WebTorrent Hidden Window') engine = page
+      }
+      if (!engine) await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    assert(engine)
+    await engine.waitForFunction(() => window.client?._downloadLimit === 98304 && window.client._uploadLimit === 49152)
+    console.log('Audit UI: bandwidth limits survive app restart')
+    // A failed settings request must show recovery, without starting unlimited.
+    await engine.evaluate(() => new Promise(resolve => window.client.destroy(resolve)))
+    await restarted.evaluate(({ app, ipcMain, BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find(win => win.webContents.getTitle() !== 'WebTorrent Hidden Window')
+      ipcMain.emit('engineStartupFailed', { sender: main.webContents }, 'Rejected test sender')
+      if (!app.ipcReadyWebTorrent) throw new Error('UI renderer cannot stop the engine')
+      ipcMain.removeHandler('getBandwidthLimits')
+      ipcMain.handle('getBandwidthLimits', () => { throw new Error('Settings unavailable (test)') })
+      BrowserWindow.getAllWindows().find(win => win.webContents.getTitle() === 'WebTorrent Hidden Window').webContents.reload()
+    })
+    const mainWindow = restarted.windows().find(page => page !== engine)
+    await mainWindow.getByRole('heading', { name: 'The torrent engine stopped' }).waitFor()
+    assert.equal(await engine.evaluate(() => !!window.client), false, 'no unlimited client after failed settings request')
+    console.log('Audit UI: rejected bandwidth settings show engine recovery without starting transfers')
+  } finally { await restarted.close() }
 }
 main().catch(err => { console.error(err); process.exitCode = 1 })

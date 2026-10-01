@@ -12,6 +12,12 @@ const checkTorrentId = require('../src/main/torrent-id')
 const migrations = require('../src/main/migrations')
 
 async function main () {
+  const bandwidth = require('../src/renderer/lib/bandwidth')
+  assert.deepEqual(bandwidth.options({}), { downloadLimit: -1, uploadLimit: -1 })
+  assert.deepEqual(bandwidth.options({ downloadLimitKiB: 128, uploadLimitKiB: 0 }), { downloadLimit: 131072, uploadLimit: -1 })
+  for (const value of [-1, 0.5, NaN, Infinity, '128', null, Number.MAX_SAFE_INTEGER]) {
+    assert.throws(() => bandwidth.toBytes(value), /Bandwidth limits/)
+  }
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'webtorrent-fixes-'))
   const file = path.join(dir, 'sample.srt')
   await fs.writeFile(file, '1\n00:00:01,000 --> 00:00:02,000\nHello\n')

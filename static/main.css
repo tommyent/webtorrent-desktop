@@ -368,6 +368,27 @@ textarea,
   font-size: 14px !important;
 }
 
+.bandwidth-limits {
+  display: flex;
+  gap: 20px;
+}
+
+.bandwidth-limits label {
+  flex: 1;
+  min-width: 0;
+}
+
+.bandwidth-limits input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px;
+  color: #eee;
+  background: #333;
+  border: 1px solid #777;
+  border-radius: 3px;
+}
+
 /*
  * TORRENT LIST
  */

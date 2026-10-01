@@ -73,6 +73,7 @@ const CLIENT_OPTIONS = config.IS_TEST
 // Connect to the WebTorrent and BitTorrent networks. WebTorrent Desktop is a hybrid
 // client, as explained here: https://webtorrent.io/faq
 let client = null
+let bandwidthOptions = null
 
 // WebTorrent-to-HTTP streaming server. webtorrent 3 allows exactly one
 // server per client (createServer throws on the second call, even after the
@@ -91,14 +92,24 @@ let prevProgress = null
 // Torrents with unticked files whose ticked files have all finished
 const selectionsDone = new WeakSet()
 
-const bootstrap = import('webtorrent').then(mod => {
+const bootstrap = import('webtorrent').then(async mod => {
   WebTorrent = mod.default
-  client = window.client = new WebTorrent(CLIENT_OPTIONS)
+  bandwidthOptions = await ipcRenderer.invoke('getBandwidthLimits')
+  client = window.client = new WebTorrent({ ...CLIENT_OPTIONS, ...bandwidthOptions })
   init()
+}).catch(err => {
+  console.error('Torrent engine could not start:', err)
+  ipcRenderer.send('engineStartupFailed', err.message)
 })
 
 function init () {
   listenToClientEvents()
+
+  ipcRenderer.on('wt-set-bandwidth', (e, limits) => {
+    bandwidthOptions = limits
+    client.throttleDownload(limits.downloadLimit)
+    client.throttleUpload(limits.uploadLimit)
+  })
 
   ipcRenderer.on('wt-set-global-trackers', (e, globalTrackers) =>
     setGlobalTrackers(globalTrackers))
@@ -531,6 +542,7 @@ window.testOfflineMode = async () => {
   serverReady = null
   client = window.client = new WebTorrent({
     ...CLIENT_OPTIONS,
+    ...bandwidthOptions,
     tracker: false,
     webSeeds: false
   })

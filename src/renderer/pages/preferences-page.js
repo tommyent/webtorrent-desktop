@@ -82,7 +82,7 @@ class PreferencesPage extends React.Component {
           label='Highest Playback Priority'
           onCheck={this.handleHighestPlaybackPriorityChange}
         />
-        <p>Pauses all active torrents to allow playback to use all of the available bandwidth.</p>
+        <p>Pauses other active torrents while playing. Bandwidth limits still apply.</p>
       </Preference>
     )
   }
@@ -280,6 +280,27 @@ class PreferencesPage extends React.Component {
           {this.openExternalPlayerCheckbox()}
           {this.externalPlayerPathSelector()}
           {this.highestPlaybackPriorityCheckbox()}
+        </PreferencesSection>
+        <PreferencesSection title='Torrent bandwidth'>
+          <p id='bandwidth-help'>Limits apply across all torrents, including playback. 0 means unlimited. 1 KiB = 1,024 bytes.</p>
+          <div className='bandwidth-limits'>
+            {['download', 'upload'].map(direction => (
+              <label key={direction}>
+                {direction === 'download' ? 'Download limit (KiB/s)' : 'Upload limit (KiB/s)'}
+                <input
+                  type='number' min='0' step='1' max={Math.floor(Number.MAX_SAFE_INTEGER / 1024)}
+                  aria-describedby='bandwidth-help'
+                  defaultValue={this.props.state.saved.prefs[direction + 'LimitKiB'] || 0}
+                  onBlur={e => {
+                    if (e.target.value === '') e.target.value = '0'
+                    if (e.target.reportValidity()) dispatch('updatePreferences', direction + 'LimitKiB', e.target.valueAsNumber)
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+                />
+              </label>
+            ))}
+          </div>
+          <p>Low download limits may cause buffering. Playback priority keeps these limits. The upload limit applies to sharing with torrent peers.</p>
         </PreferencesSection>
         <PreferencesSection title='Default torrent app'>
           {this.setDefaultAppButton()}
