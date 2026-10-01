@@ -154,18 +154,40 @@ function chromecastPlayer () {
 
   function addDevice (device) {
     device.on('error', err => {
-      if (device !== ret.device) return
+      // Already back to local playback (the play callback reported the failure)
+      if (device !== ret.device || state.playing.location === 'local') return
       state.playing.location = 'local'
       state.errors.push({
         time: new Date().getTime(),
-        message: 'Could not connect to Chromecast. ' + err.message
+        message: `Could not connect to ${device.name}. ${err.message}`
       })
+      diagnose(device, err)
       update()
     })
     device.on('disconnect', () => {
       if (device !== ret.device) return
       state.playing.location = 'local'
       update()
+    })
+  }
+
+  // For logs (--enable-logging): which device and address failed, after how
+  // long, and whether a bare TLS handshake to it works from this process
+  // (webtorrent-desktop-8kw)
+  function diagnose (device, err) {
+    console.log('cast: %s at %s failed after %d ms: %s %s',
+      device.name, device.host, Date.now() - ret.connectStarted, err.code || '', err.message)
+    require('dns').lookup(device.host, { all: true }, (lookupErr, addresses) => {
+      if (lookupErr) return console.log('cast: %s does not resolve: %s', device.host, lookupErr.code)
+      for (const { address } of addresses) {
+        const started = Date.now()
+        const socket = require('tls').connect({ host: address, port: 8009, rejectUnauthorized: false, timeout: 5000 }, () => {
+          console.log('cast: TLS check %s:8009 OK (%s) in %d ms', address, socket.getProtocol(), Date.now() - started)
+          socket.destroy()
+        })
+        socket.on('timeout', () => { console.log('cast: TLS check %s:8009 timed out', address); socket.destroy() })
+        socket.on('error', e => console.log('cast: TLS check %s:8009 failed: %s %s', address, e.code || '', e.message))
+      }
     })
   }
 
@@ -196,8 +218,11 @@ function chromecastPlayer () {
 
   function open () {
     const torrentSummary = state.saved.torrents.find((x) => x.infoHash === state.playing.infoHash)
+    const device = ret.device
+    console.log('cast: connecting to %s at %s', device.name, device.host)
+    ret.connectStarted = Date.now()
     serveSubtitles(subtitlesUrl => {
-      ret.device.play(state.server.networkURL + '/' + state.server.filePaths[state.playing.fileIndex], {
+      device.play(state.server.networkURL + '/' + state.server.filePaths[state.playing.fileIndex], {
         type: 'video/mp4',
         title: config.APP_NAME + ' - ' + torrentSummary.name,
         subtitles: subtitlesUrl ? [subtitlesUrl] : [],
@@ -208,8 +233,9 @@ function chromecastPlayer () {
           state.playing.location = 'local'
           state.errors.push({
             time: new Date().getTime(),
-            message: 'Could not connect to Chromecast. ' + err.message
+            message: `Could not connect to ${device.name}. ${err.message}`
           })
+          diagnose(device, err)
         } else {
           state.playing.location = 'chromecast'
         }
@@ -280,18 +306,25 @@ function airplayPlayer () {
     })
   }
 
+  // Not this computer: a Mac lists itself as an AirPlay receiver
   function getDevices () {
-    return airplayer.players
+    return airplayer.players.filter(player => !isThisComputer(player.host))
   }
 
   function open () {
-    ret.device.play(state.server.networkURL + '/' + state.server.filePaths[state.playing.fileIndex], (err, res) => {
+    const device = ret.device
+    device.play(state.server.networkURL + '/' + state.server.filePaths[state.playing.fileIndex], (err, res) => {
       if (state.playing.location !== 'airplay-pending') return // stopped while connecting
       if (err) {
         state.playing.location = 'local'
         state.errors.push({
           time: new Date().getTime(),
-          message: 'Could not connect to AirPlay. ' + err.message
+          // A 403 is the receiver refusing us, typically because its AirPlay
+          // access is limited (its Apple Account, paired devices) or it wants a
+          // password, none of which WebTorrent can provide
+          message: /: 403$/.test(err.message)
+            ? `${device.name} refused AirPlay (403). Its AirPlay settings may allow only its own Apple Account or require a password, which WebTorrent can't provide.`
+            : 'Could not connect to AirPlay. ' + err.message
         })
       } else {
         state.playing.location = 'airplay'
@@ -514,6 +547,12 @@ function stoppedCasting () {
     ? state.playing.currentTime
     : 0
   update()
+}
+
+// mDNS host names are case-insensitive and may end in a dot
+function isThisComputer (host) {
+  const name = h => String(h || '').toLowerCase().replace(/\.$/, '').replace(/\.local$/, '')
+  return name(host) === name(require('os').hostname())
 }
 
 function getPlayer (location) {
