@@ -14,6 +14,7 @@ const config = require('../config')
 const { TorrentKeyNotFoundError } = require('./lib/errors')
 const torrentPoster = require('./lib/torrent-poster')
 const createTorrentMetadata = require('./lib/create-torrent')
+const { selectFiles, selectedFilesDone } = require('./lib/file-selection')
 const CastEngine = require('./cast-engine')
 
 // webtorrent 3 is ESM-only; this file is CommonJS, so it loads via dynamic
@@ -84,6 +85,9 @@ let castEngine = null
 // Used for diffing, so we only send progress updates when necessary
 let prevProgress = null
 
+// Torrents with unticked files whose ticked files have all finished
+const selectionsDone = new WeakSet()
+
 const bootstrap = import('webtorrent').then(mod => {
   WebTorrent = mod.default
   client = window.client = new WebTorrent(CLIENT_OPTIONS)
@@ -114,7 +118,11 @@ function init () {
   ipcRenderer.on('wt-select-files', (e, torrentKey, selections) => {
     const torrent = getTorrentByKey(torrentKey)
     if (!torrent) return onError(new Error('selectFiles: missing torrent ' + torrentKey))
-    whenReady(torrent, () => selectFiles(torrent, selections))
+    whenReady(torrent, () => {
+      selectFiles(torrent, selections)
+      // A newly ticked file that finishes before the next progress update is reported done too
+      checkSelectedFilesDone(torrent)
+    })
   })
   ipcRenderer.on('wt-cast-command', (e, envelope) =>
     getCastEngine().handle(envelope))
@@ -246,7 +254,7 @@ function addTorrentEvents (torrent) {
 
   function torrentDone () {
     const info = getTorrentInfo(torrent)
-    ipcRenderer.send('wt-done', torrent.key, info)
+    ipcRenderer.send('wt-done', torrent.key, { ...info, complete: true })
 
     updateTorrentProgress()
 
@@ -339,6 +347,7 @@ function generateTorrentPoster (torrentKey) {
 }
 
 function updateTorrentProgress () {
+  client.torrents.forEach(checkSelectedFilesDone)
   const progress = getTorrentProgress()
   // TODO: diff torrent-by-torrent, not once for the whole update
   if (prevProgress && util.isDeepStrictEqual(progress, prevProgress)) {
@@ -348,10 +357,21 @@ function updateTorrentProgress () {
   prevProgress = progress
 }
 
+// WebTorrent's 'done' needs every file. A torrent with unticked files is done
+// for the user once its ticked files are: reported as not complete, so the UI
+// keeps its resume map and saves no file modtimes.
+function checkSelectedFilesDone (torrent) {
+  if (!torrent.ready || !selectedFilesDone(torrent)) return selectionsDone.delete(torrent)
+  if (selectionsDone.has(torrent)) return
+  selectionsDone.add(torrent)
+  ipcRenderer.send('wt-done', torrent.key, { ...getTorrentInfo(torrent), complete: false })
+}
+
 function getTorrentProgress () {
   // First, track overall progress
   const progress = client.progress
-  const hasActiveTorrents = client.torrents.some(torrent => torrent.progress !== 1)
+  const hasActiveTorrents = client.torrents.some(torrent =>
+    torrent.progress !== 1 && !selectionsDone.has(torrent))
 
   // Track progress for every file in each torrent
   // TODO: ideally this would be tracked by WebTorrent, which could do it
@@ -374,6 +394,7 @@ function getTorrentProgress () {
       torrentKey: torrent.key,
       ready: torrent.ready,
       done: torrent.done,
+      selectedDone: selectionsDone.has(torrent),
       progress: torrent.progress,
       downloaded: torrent.downloaded,
       downloadSpeed: torrent.downloadSpeed,
@@ -479,36 +500,6 @@ function sendAudioMetadata (torrent, index) {
         )
       }
     )
-}
-
-function selectFiles (torrent, selections) {
-  // Selections not specified?
-  // Load all files. We still need to replace the default whole-torrent
-  // selection with individual selections for each file, so we can
-  // select/deselect files later on
-  if (!selections) {
-    selections = new Array(torrent.files.length).fill(true)
-  }
-
-  // Selections specified incorrectly?
-  if (selections.length !== torrent.files.length) {
-    throw new Error('got ' + selections.length + ' file selections, ' +
-      'but the torrent contains ' + torrent.files.length + ' files')
-  }
-
-  // Remove default selection (whole torrent)
-  torrent.deselect(0, torrent.pieces.length - 1, false)
-
-  // Add selections (individual files)
-  selections.forEach((selection, i) => {
-    const file = torrent.files[i]
-    if (selection) {
-      file.select()
-    } else {
-      console.log('deselecting file ' + i + ' of torrent ' + torrent.name)
-      file.deselect()
-    }
-  })
 }
 
 // Gets a WebTorrent handle by torrentKey

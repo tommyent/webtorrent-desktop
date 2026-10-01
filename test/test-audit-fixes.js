@@ -165,7 +165,7 @@ async function main () {
   const TorrentController = require('../src/renderer/controllers/torrent-controller')
   const summary = { torrentKey: 1, infoHash: 'b'.repeat(40), name: 'sample.srt', path: dir, files: [{ path: 'sample.srt' }] }
   const controller = new TorrentController({ saved: { torrents: [summary] }, playing: { isPaused: true }, window: { isFocused: true }, dock: { badge: 0 } })
-  controller.torrentDone(1, { bytesReceived: 1 })
+  controller.torrentDone(1, { bytesReceived: 1, complete: true })
   assert.equal(notifications, 1)
   assert.equal(summary.completed, true)
   controller.torrentProgress({ torrents: [{ torrentKey: 1, ready: false, done: false }] })

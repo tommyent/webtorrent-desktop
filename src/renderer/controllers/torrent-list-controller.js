@@ -208,6 +208,7 @@ module.exports = class TorrentListController {
   toggleTorrentFile (infoHash, index) {
     const torrentSummary = TorrentSummary.getByKey(this.state, infoHash)
     torrentSummary.selections[index] = !torrentSummary.selections[index]
+    dispatch('stateSave')
 
     // Let the WebTorrent process know to start or stop fetching that file
     if (torrentSummary.status !== 'paused') {

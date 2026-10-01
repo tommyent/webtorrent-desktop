@@ -106,7 +106,9 @@ module.exports = class TorrentController {
     // Update the torrent summary
     const torrentSummary = this.getTorrentSummary(torrentKey)
     torrentSummary.status = 'seeding'
-    torrentSummary.completed = true
+    // Only when every file is complete: a torrent with unticked files is done
+    // for the user but keeps its resume map and path check
+    if (torrentInfo.complete) torrentSummary.completed = true
     dispatch('stateSave')
 
     // A poster that couldn't be made mid-download gets another try with all the data
@@ -146,6 +148,10 @@ module.exports = class TorrentController {
       if (p.ready && torrentSummary.completed !== p.done) {
         torrentSummary.completed = p.done
         dispatch('stateSave')
+      }
+      // A newly ticked file still has data to fetch
+      if (p.ready && !p.done && !p.selectedDone && torrentSummary.status === 'seeding') {
+        torrentSummary.status = 'downloading'
       }
     })
 
