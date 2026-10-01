@@ -34,6 +34,18 @@ const patches = [
     to: `    } else if (this.listenerCount('error')) {
       this.emit('error', err)
     }`
+  },
+  {
+    // Windows zips clear the output with rmdir, which throws for a missing path
+    // on current Node, so a fresh Windows build never got its zip (webtorrent-desktop-c05).
+    file: 'cross-zip/index.js',
+    from: '    fs.rmdirSync(outPath, { recursive: true, maxRetries: 3 })',
+    to: '    fs.rmSync(outPath, { recursive: true, force: true, maxRetries: 3 })'
+  },
+  {
+    file: 'cross-zip/index.js',
+    from: '      fs.rmdir(outPath, { recursive: true, maxRetries: 3 }, doZip2)',
+    to: '      fs.rm(outPath, { recursive: true, force: true, maxRetries: 3 }, doZip2)'
   }
 ]
 

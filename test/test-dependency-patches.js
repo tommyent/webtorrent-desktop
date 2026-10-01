@@ -26,6 +26,26 @@ async function main () {
   client.onError(new Error('recvmsg EHOSTUNREACH'))
   assert.equal(client.socket, null, 'socket closed')
 
+  // A Windows zip with no old zip to clear (a fresh build) reaches the zip command.
+  const cp = require('node:child_process')
+  const os = require('node:os')
+  const zip = require('cross-zip')
+  const real = { platform: process.platform, execFileSync: cp.execFileSync, execFile: cp.execFile }
+  const zipped = []
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'webtorrent-zip-'))
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  cp.execFileSync = command => zipped.push(command)
+  cp.execFile = (command, args, opts, cb) => { zipped.push(command); cb(null) }
+  try {
+    zip.zipSync(dir, path.join(dir, 'missing-sync.zip'))
+    await new Promise((resolve, reject) => zip.zip(dir, path.join(dir, 'missing-async.zip'), err => err ? reject(err) : resolve()))
+  } finally {
+    Object.defineProperty(process, 'platform', { value: real.platform })
+    Object.assign(cp, { execFileSync: real.execFileSync, execFile: real.execFile })
+    fs.rmSync(dir, { recursive: true })
+  }
+  assert.deepEqual(zipped, ['powershell.exe', 'powershell.exe'], 'both Windows zip paths ran')
+
   // The patcher touches exactly one target, and refuses a file it can't be sure of.
   const patchSource = require('../bin/patch-deps')
   const patch = { file: 'x.js', from: 'a\nb', to: 'a\nc\nb' }
@@ -36,7 +56,7 @@ async function main () {
     assert.throws(() => patchSource(source, patch), /x\.js changed/, JSON.stringify(source))
   }
 
-  console.log('Dependency patches passed: metadata after destroy, NAT-PMP error without a request, ambiguous targets refused')
+  console.log('Dependency patches passed: metadata after destroy, NAT-PMP error without a request, Windows zip without an old zip, ambiguous targets refused')
 }
 
 main().catch(err => {
