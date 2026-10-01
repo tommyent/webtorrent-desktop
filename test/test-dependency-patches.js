@@ -46,6 +46,32 @@ async function main () {
   }
   assert.deepEqual(zipped, ['powershell.exe', 'powershell.exe'], 'both Windows zip paths ran')
 
+  // A Chromecast whose address arrives before its name is shown by its name.
+  // mDNS and SSDP are faked, so no sockets open.
+  const castDir = path.dirname(require.resolve('chromecasts'))
+  const fake = (name, exports) => {
+    const file = require.resolve(name, { paths: [castDir] })
+    require.cache[file] = { id: file, filename: file, loaded: true, exports }
+  }
+  const EventEmitter = require('node:events')
+  const mdns = Object.assign(new EventEmitter(), { query () {}, destroy () {} })
+  fake('multicast-dns', () => mdns)
+  fake('node-ssdp', {})
+  const finder = require('chromecasts')()
+  const updates = []
+  finder.on('update', player => updates.push(player.name))
+  const instance = 'Google-TV-Streamer-1234._googlecast._tcp.local'
+  mdns.emit('response', {
+    additionals: [],
+    answers: [
+      { type: 'PTR', name: '_googlecast._tcp.local', data: instance },
+      { type: 'SRV', name: instance, data: { target: 'tv-1234.local', port: 8009 } },
+      { type: 'TXT', name: instance, data: [Buffer.from('fn=Kitchen TV')] }
+    ]
+  })
+  assert.deepEqual(finder.players.map(p => [p.name, p.host]), [['Kitchen TV', 'tv-1234.local']])
+  assert.deepEqual(updates, ['Google-TV-Streamer-1234', 'Kitchen TV'], 'renamed and announced again')
+
   // The patcher touches exactly one target, and refuses a file it can't be sure of.
   const patchSource = require('../bin/patch-deps')
   const patch = { file: 'x.js', from: 'a\nb', to: 'a\nc\nb' }
@@ -56,7 +82,7 @@ async function main () {
     assert.throws(() => patchSource(source, patch), /x\.js changed/, JSON.stringify(source))
   }
 
-  console.log('Dependency patches passed: metadata after destroy, NAT-PMP error without a request, Windows zip without an old zip, ambiguous targets refused')
+  console.log('Dependency patches passed: metadata after destroy, NAT-PMP error without a request, Windows zip without an old zip, Chromecast names after addresses, ambiguous targets refused')
 }
 
 main().catch(err => {

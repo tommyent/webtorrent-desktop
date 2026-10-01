@@ -46,6 +46,50 @@ const patches = [
     file: 'cross-zip/index.js',
     from: '      fs.rmdir(outPath, { recursive: true, maxRetries: 3 }, doZip2)',
     to: '      fs.rm(outPath, { recursive: true, force: true, maxRetries: 3 }, doZip2)'
+  },
+  {
+    // Cast devices showed their mDNS instance ID ("Google-TV-Streamer-1234...")
+    // instead of their name (webtorrent-desktop-9xz). dns-packet gives each TXT
+    // string without its length byte, and dns-txt expects one, so "fn=Kitchen"
+    // was read as "n=Kitchen" and the name never applied.
+    file: 'chromecasts/index.js',
+    from: `        a.data.forEach((item) => {
+          const decodedItem = txt.decode(item)
+          Object.keys(decodedItem).forEach((key) => {
+            text[key] = decodedItem[key]
+          })
+        })`,
+    to: `        a.data.forEach((item) => {
+          const entry = item.toString()
+          const eq = entry.indexOf('=')
+          if (eq > 0) text[entry.slice(0, eq)] = entry.slice(eq + 1)
+        })`
+  },
+  {
+    // The address (SRV) usually arrives before the name (TXT), so the player
+    // already exists by then: keep a handle to rename it.
+    file: 'chromecasts/index.js',
+    from: `    player.host = cst.host
+
+    player.client = function (cb) {`,
+    to: `    player.host = cst.host
+    cst.player = player
+
+    player.client = function (cb) {`
+  },
+  {
+    file: 'chromecasts/index.js',
+    from: `        if (text.fn) {
+          casts[name].name = text.fn
+          emit(casts[name])`,
+    to: `        if (text.fn) {
+          casts[name].name = text.fn
+          var known = casts[name].player
+          if (known && known.name !== text.fn) {
+            known.name = text.fn
+            that.emit('update', known)
+          }
+          emit(casts[name])`
   }
 ]
 
