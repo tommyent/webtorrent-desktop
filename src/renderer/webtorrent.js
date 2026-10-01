@@ -65,7 +65,10 @@ const CLIENT_OPTIONS = config.IS_TEST
     }
   // Local peer discovery is off: WebTorrent starts it even for private
   // torrents (only DHT checks), which multicasts their info hash on the LAN.
-  : { peerId: PEER_ID, lsd: false }
+  // uTP is off: utp-native 2.5.3 dereferences a null sender address when a UDP
+  // read fails (e.g. ENETUNREACH after a route change) and crashes the whole
+  // engine (webtorrent-desktop-ucn). Peers connect over TCP and WebRTC.
+  : { peerId: PEER_ID, lsd: false, utp: false }
 
 // Connect to the WebTorrent and BitTorrent networks. WebTorrent Desktop is a hybrid
 // client, as explained here: https://webtorrent.io/faq
