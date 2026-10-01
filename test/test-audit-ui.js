@@ -28,6 +28,9 @@ async function main () {
     engine.setDefaultTimeout(15000)
     console.log('Audit UI: windows ready')
     await page.locator('.header').waitFor()
+    // The header drags the window; OS clicks on its buttons only work if they are exempt (Playwright clicks skip this).
+    const regions = await page.$$eval('.header button', els => els.map(el => window.getComputedStyle(el).getPropertyValue('-webkit-app-region')))
+    assert(regions.length >= 3 && regions.every(r => r === 'no-drag'), 'header buttons must be no-drag: ' + regions)
     await engine.evaluate(() => window.testOfflineMode())
 
     // Browser links must show a row before a cold/busy engine acknowledges them.

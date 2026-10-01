@@ -329,7 +329,8 @@ table {
  */
 
 a,
-i { /* Links and icons */
+i,
+button { /* Links, icons and buttons */
   cursor: default;
   -webkit-app-region: no-drag;
 }
