@@ -127,6 +127,29 @@ async function main () {
   assert.deepEqual(state.removalSelection, [2], 'and stays checked')
   assert.equal(errors.length, 1)
 
+  // Cancelling permanent deletion keeps the row, selection and metadata, and
+  // stops the batch before any other torrent is removed.
+  b.status = 'seeding'
+  const kept = row(4, 'c')
+  state.saved.torrents.push(kept)
+  const metadata = []
+  window.webtorrent.torrent.deleteMetadata = async (...args) => metadata.push(args)
+  window.webtorrent.torrent.trashData = async () => false
+  await list.deleteTorrents([2, 4], true)
+  assert.deepEqual(state.saved.torrents, [b, kept])
+  assert.deepEqual(state.removalSelection, [2])
+  assert.deepEqual(metadata, [], 'metadata is kept when data removal is cancelled')
+  assert.equal(b.status, 'paused', 'cancelled removal leaves a stopped torrent paused')
+  assert.equal(kept.status, 'paused')
+  assert.equal(errors.length, 1, 'cancellation is not an error')
+  b.status = kept.status = 'seeding'
+  await list.deleteAllTorrents(true)
+  assert.deepEqual(state.saved.torrents, [b, kept], 'Cancel also stops Remove All')
+  assert.equal(b.status, 'paused')
+  assert.equal(kept.status, 'seeding', 'later torrents keep running')
+  assert.deepEqual(metadata, [])
+  state.saved.torrents.pop()
+
   // Pressing Remove again with rows already gone doesn't throw.
   await list.deleteTorrents([1, 2, 3], false)
   assert.deepEqual(state.saved.torrents, [])
@@ -138,16 +161,19 @@ async function main () {
   const torrents = new TorrentController(state)
   Object.assign(state, { nextTorrentKey: 10 })
   state.saved.prefs.downloadPath = '/downloads'
+  const permissions = require('../src/main/file-permissions')
+  permissions.initialize(state.saved)
   const hash = 'd'.repeat(40)
   const magnet = 'magnet:?xt=urn:btih:' + hash + '&dn=D'
   const started = []
-  window.webtorrent.torrent.start = (torrentKey, torrentId) => started.push([torrentKey, torrentId])
+  window.webtorrent.torrent.start = (torrentKey, torrentId, downloadPath) => started.push([torrentKey, torrentId, downloadPath])
   list.addTorrent(magnet)
   list.toggleTorrent(10)
   list.toggleTorrent(10)
-  assert.deepEqual(started, [[10, magnet], [10, magnet]])
+  assert.deepEqual(started, [[10, magnet, '/downloads'], [10, magnet, '/downloads']])
   torrents.torrentParsed(10, hash, magnet)
   assert.equal(state.saved.torrents[0].addedTorrentId, undefined, 'parsed rows keep no copy of the input')
+  permissions.validateSaved(state.saved)
 
   // Checked rows that leave the list another way don't keep "Remove (1)" up.
   list.addTorrent(magnet)
@@ -237,6 +263,15 @@ async function main () {
   saver.torrentProgress({ torrents: [active(21, 16384)] })
   assert.equal(saves(), before + 4, 'saved though the total is the same')
   Date.now = realNow
+
+  // Bundled torrents have trusted file metadata but no download folder until
+  // the engine reports it. Starting one must still allow preferences to save.
+  const bundled = { torrentKey: 30, infoHash: '9'.repeat(40), status: 'paused', files: [{ path: 'example.mp4' }] }
+  const bundledState = { saved: { prefs: { downloadPath: '/downloads' }, torrents: [bundled] } }
+  permissions.initialize(bundledState.saved)
+  window.webtorrent.torrent.start = (key, id, downloadPath) => assert.equal(downloadPath, '/downloads')
+  new TorrentListController(bundledState).toggleTorrent(30)
+  permissions.validateSaved(bundledState.saved)
 
   console.log('List action regressions passed: switch during path check, on/off/on, pause all, missing folder, multi-remove, restart before parse, checked rows that leave, fast resume, poster on done, periodic map save')
 }

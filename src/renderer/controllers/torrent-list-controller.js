@@ -96,12 +96,9 @@ module.exports = class TorrentListController {
     const s = TorrentSummary.getByKey(this.state, torrentKey)
     if (!s) throw new TorrentKeyNotFoundError(torrentKey)
 
-    // New torrent: give it a path
-    if (!s.path) {
-      // Use Downloads folder by default
-      s.path = this.state.saved.prefs.downloadPath
-      return start()
-    }
+    // Keep saved paths unchanged until the engine reports trusted metadata.
+    const downloadPath = s.path || this.state.saved.prefs.downloadPath
+    if (!s.path) return start()
 
     const fileOrFolder = TorrentSummary.getFileOrFolder(s)
 
@@ -127,7 +124,7 @@ module.exports = class TorrentListController {
       api.torrent.start(
         s.torrentKey,
         TorrentSummary.getTorrentId(s),
-        s.path,
+        downloadPath,
         s.fileModtimes,
         s.selections,
         TorrentSummary.getResumeBitfield(s))
@@ -243,7 +240,7 @@ module.exports = class TorrentListController {
   async deleteTorrents (torrentKeys, deleteData) {
     for (const torrentKey of torrentKeys) {
       // Skip rows another removal already took out
-      if (TorrentSummary.getByKey(this.state, torrentKey)) await this.deleteTorrent(torrentKey, deleteData)
+      if (TorrentSummary.getByKey(this.state, torrentKey) && await this.deleteTorrent(torrentKey, deleteData) === false) return
     }
   }
 
@@ -259,7 +256,13 @@ module.exports = class TorrentListController {
     const summary = TorrentSummary.getByKey(this.state, infoHash)
 
     if (summary) {
-      try { await deleteTorrentFile(summary, deleteData) } catch (err) {
+      try {
+        if (await deleteTorrentFile(summary, deleteData) === false) {
+          dispatch('stateSave')
+          return false
+        }
+      } catch (err) {
+        dispatch('stateSave')
         dispatch('error', err)
         return
       }
@@ -286,7 +289,7 @@ module.exports = class TorrentListController {
     }
 
     for (const summary of [...this.state.saved.torrents]) {
-      await this.deleteTorrent(summary.torrentKey, deleteData)
+      if (await this.deleteTorrent(summary.torrentKey, deleteData) === false) return
     }
     dispatch('stateSave')
 
@@ -343,9 +346,10 @@ function moveItemToTrash (torrentSummary) {
 
 async function deleteTorrentFile (torrentSummary, deleteData) {
   pendingStarts.delete(torrentSummary)
+  torrentSummary.status = 'paused'
   api.torrent.stop(torrentSummary.torrentKey)
 
-  if (deleteData) await moveItemToTrash(torrentSummary)
+  if (deleteData && await moveItemToTrash(torrentSummary) === false) return false
 
   // remove torrent and poster files
   await api.torrent.deleteMetadata(

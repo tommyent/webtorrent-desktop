@@ -18,11 +18,34 @@ async function trashTorrentData (infoHash, trashItem) {
   const folder = path.resolve(root, torrent.files[0].path.split(/[\\/]/)[0])
   files.forEach(assertDataPath)
 
+  const trashPaths = []
   if (!files.includes(folder) && await exists(folder)) {
     assertDataPath(folder)
-    if (await holdsOnly(folder, new Set(files))) return trashItem(folder)
+    if (await holdsOnly(folder, new Set(files))) trashPaths.push(folder)
   }
-  for (const file of files) if (await exists(file)) await trashItem(file)
+  if (!trashPaths.length) {
+    for (const file of files) if (await exists(file)) trashPaths.push(file)
+  }
+  try {
+    for (const target of trashPaths) await trashItem(target)
+  } catch (err) {
+    const { dialog } = require('electron')
+    const { response } = await dialog.showMessageBox(require('./windows').main.win, {
+      type: 'warning',
+      message: `Permanently delete the remaining downloaded files for “${torrent.name || path.basename(folder)}”?`,
+      detail: `${err.message}\n\nThese files could not be moved to the Trash. Permanent deletion cannot be undone.\n\nDownload folder: ${root}`,
+      buttons: ['Cancel', 'Delete Permanently'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    })
+    if (response !== 1) return false
+    // Only unlink recorded files: unrelated files can appear during the dialog.
+    for (const file of files) {
+      assertDataPath(file)
+      if (await exists(file)) await fs.promises.unlink(file)
+    }
+  }
 
   const folders = new Set()
   for (const file of files) {
@@ -31,6 +54,7 @@ async function trashTorrentData (infoHash, trashItem) {
   for (const dir of [...folders].sort((a, b) => b.length - a.length)) {
     await fs.promises.rmdir(dir).catch(() => {}) // not empty, or already gone
   }
+  return true
 }
 
 async function holdsOnly (dir, files) {
