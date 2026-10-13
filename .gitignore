@@ -7,3 +7,18 @@ npm-debug.log*
 # JetBrains IntelliJ IDEA project files
 .idea
 *.iml
+
+# Local agent and editor setup
+/.agents/
+/.beads/
+/.claude/
+/.codex/
+/.cursor/
+/AGENTS.md
+/CLAUDE.md
+
+# Beads / Dolt files
+.dolt/
+*.db
+.beads-credential-key
+*.gate.lock*
