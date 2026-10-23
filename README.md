@@ -110,13 +110,13 @@ Run one Electron test suite at a time; the suites share a temporary test profile
 
 ### Package the app
 
-Builds app binaries for Mac, Linux, and Windows.
+Builds the app for the current platform.
 
 ```
 $ npm run package
 ```
 
-To build for one platform:
+To choose the platform and options:
 
 ```
 $ npm run package -- [platform] [options]
@@ -129,34 +129,26 @@ The following optional arguments are available:
 
 - `--sign` - Sign the application (Mac, Windows)
 - `--arch=[architecture]` - Override the target architecture. macOS supports `arm64`, `x64`, and
-  `universal` (the default); Linux supports `arm64`, `armv7l`, and `x64`.
+  `universal` (the default); Linux supports `arm64`, `armv7l`, and `x64` (all three by default);
+  Windows supports only `x64`.
 - `--package=[type]` - Package single output type.
    - `deb` - Debian package
    - `rpm` - RedHat package
-   - `zip` - Linux zip file
+   - `zip` - ZIP archive (Mac, Linux)
    - `dmg` - Mac disk image
    - `exe` - Windows installer
    - `portable` - Windows portable app
-   - `all` - All platforms (default)
+   - `all` - All types for the platform (default)
 
 Note: Mac builds always produce a ZIP archive, even with `--package=dmg`.
 
 #### Windows build notes
 
-The Windows app can be packaged from **any** platform.
+Package the Windows app on **Windows**, as the release builds do. Building the installer on
+macOS or Linux also needs [Wine](https://www.winehq.org/) and
+[Mono](https://www.mono-project.com/).
 
-Note: Windows code signing only works from **Windows**, for now.
-
-Note: To package the Windows app from non-Windows platforms,
-[Wine](https://www.winehq.org/) and [Mono](https://www.mono-project.com/) need
-to be installed. For example on Mac, first install
-[XQuartz](http://www.xquartz.org/), then run:
-
-```
-$ brew install wine mono
-```
-
-(Requires the [Homebrew](http://brew.sh/) package manager.)
+Windows code signing only works on **Windows**.
 
 #### Mac build notes
 
@@ -171,7 +163,8 @@ $ npm run package -- darwin --arch=arm64 --package=zip
 
 #### Linux build notes
 
-The Linux app can be packaged from **any** platform.
+The Linux app can be packaged on Linux or macOS. On Windows, use `--package=zip`: the `.deb` and
+`.rpm` tools support only macOS and Linux.
 
 If packaging from Mac, install system dependencies with Homebrew by running:
 
