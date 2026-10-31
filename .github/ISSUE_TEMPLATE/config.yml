@@ -1,0 +1,4 @@
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/tommyent/webtorrent-desktop/security/advisories/new
+    about: Please report security problems privately here, not in a public issue.
