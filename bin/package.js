@@ -105,7 +105,7 @@ function validateOptions (platform) {
 
   if (argv.arch) {
     const arches = platform === 'darwin'
-      ? ['arm64', 'universal', 'x64']
+      ? ['arm64']
       : platform === 'linux'
         ? ['arm64', 'armv7l', 'x64']
         : ['x64']
@@ -166,8 +166,12 @@ const darwin = {
   // Build for Mac
   platform: 'darwin',
 
-  // A universal build runs natively on both Apple Silicon and Intel Macs.
-  arch: argv.arch || 'universal',
+  // Apple Silicon only (M1 and later). npm installs node-datachannel's addon for
+  // the build machine only, so a universal build had no Intel engine.
+  arch: 'arm64',
+
+  // Every native addon the app loads must run on Apple Silicon
+  afterPrune: [checkNativeArch],
 
   // The bundle identifier to use in the application's plist (Mac only).
   appBundleId: 'io.webtorrent.webtorrent',
@@ -228,6 +232,19 @@ const linux = {
 }
 
 build().catch(printDone)
+
+function checkNativeArch ({ buildPath }) {
+  // Prebuilds in a darwin-x64 folder are loaded only on Intel; Linux and Windows
+  // prebuilds aren't Mach-O. Anything else is what the app loads on a Mac.
+  const addons = fs.readdirSync(buildPath, { recursive: true })
+    .filter(file => file.endsWith('.node') && !file.split(path.sep).includes('darwin-x64'))
+  for (const file of addons) {
+    const type = cp.execFileSync('file', ['-b', path.join(buildPath, file)], { encoding: 'utf8' })
+    if (type.includes('Mach-O') && !type.includes('arm64')) {
+      throw new Error(`${file} has no Apple Silicon code: ${type.trim()}`)
+    }
+  }
+}
 
 function buildDarwin (cb) {
   const plist = require('plist')
@@ -386,7 +403,7 @@ function buildDarwin (cb) {
       console.log('Mac: Creating zip...')
 
       const inPath = path.join(buildPath[0], config.APP_NAME + '.app')
-      const archSuffix = darwin.arch === 'universal' ? '' : `-${darwin.arch}`
+      const archSuffix = `-${darwin.arch}`
       const outPath = path.join(DIST_PATH, `${BUILD_NAME}-darwin${archSuffix}.zip`)
       zip.zipSync(inPath, outPath)
 
@@ -396,7 +413,7 @@ function buildDarwin (cb) {
     function packageDmg (cb) {
       console.log('Mac: Creating dmg...')
 
-      const archSuffix = darwin.arch === 'universal' ? '' : `-${darwin.arch}`
+      const archSuffix = `-${darwin.arch}`
       const targetPath = path.join(DIST_PATH, `${BUILD_NAME}${archSuffix}.dmg`)
       const stagingPath = fs.mkdtempSync(path.join(os.tmpdir(), 'webtorrent-dmg-'))
       fs.rmSync(targetPath, { force: true })

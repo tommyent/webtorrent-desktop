@@ -1,6 +1,6 @@
 ## Release Process
 
-Release files are built by the `package` workflow on GitHub Actions and published as a GitHub release. The builds are not signed.
+Release files are built by the `package` workflow on GitHub Actions and published as a GitHub release. The builds are not signed, and the Mac build is Apple Silicon only (M1 and later).
 
 ### 1. Create a new version
 

@@ -16,7 +16,7 @@ An unofficial, maintained fork of
 automated dependency updates since August 2024. This fork updates the app to Electron 44,
 WebTorrent 3, and React 19, with:
 
-- Native Apple Silicon and Intel Mac builds.
+- Native builds for Apple Silicon Macs (M1 and later). Intel Macs aren't supported.
 - Faster startup and resume of unfinished downloads.
 - A start/pause switch and checkboxes for removing multiple torrents.
 - IINA support on macOS, alongside VLC and other external players.
@@ -128,8 +128,8 @@ built.
 The following optional arguments are available:
 
 - `--sign` - Sign the application (Mac, Windows)
-- `--arch=[architecture]` - Override the target architecture. macOS supports `arm64`, `x64`, and
-  `universal` (the default); Linux supports `arm64`, `armv7l`, and `x64` (all three by default);
+- `--arch=[architecture]` - Override the target architecture. macOS supports only `arm64`;
+  Linux supports `arm64`, `armv7l`, and `x64` (all three by default);
   Windows supports only `x64`.
 - `--package=[type]` - Package single output type.
    - `deb` - Debian package
@@ -154,11 +154,11 @@ Windows code signing only works on **Windows**.
 
 The Mac app can only be packaged from **macOS**.
 
-macOS packages are universal by default, so the resulting app runs natively on Apple Silicon and
-Intel Macs. For a faster local Apple Silicon-only build, run:
+macOS packages are Apple Silicon only (M1 and later), and the build fails if a native addon in
+the app has no Apple Silicon code. For a quicker local build without the DMG, run:
 
 ```
-$ npm run package -- darwin --arch=arm64 --package=zip
+$ npm run package -- darwin --package=zip
 ```
 
 #### Linux build notes

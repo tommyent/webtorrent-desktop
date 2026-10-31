@@ -1,6 +1,6 @@
 # WebTorrent Desktop Version History
 
-Release notes for v0.25.0 and later, the releases of this fork, are on the [GitHub Releases page](https://github.com/tommyent/webtorrent-desktop/releases). The history below is from the original project.
+Release notes for v0.25.0 and later, the releases of this fork, are on the [GitHub Releases page](https://github.com/tommyent/webtorrent-desktop/releases). From v0.26.4 the Mac build is Apple Silicon only (M1 and later). The history below is from the original project.
 
 ## v0.24.0 - 2020-08-28
 

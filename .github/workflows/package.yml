@@ -28,7 +28,7 @@ jobs:
         node-version: '22'
         cache: npm
     - run: npm ci
-    - run: npm run package -- darwin --arch=universal
+    - run: npm run package -- darwin
     - uses: actions/upload-artifact@v6
       with:
         name: macos
