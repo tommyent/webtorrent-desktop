@@ -1,109 +1,80 @@
 ## Release Process
 
+Release files are built by the `package` workflow on GitHub Actions and published as a GitHub release. The builds are not signed.
+
 ### 1. Create a new version
 
-- Update `AUTHORS`
+- Make sure CI is green on `master`.
+
+- Update the version. This creates a commit and a `v<version>` tag:
 
   ```
-  npm run update-authors
+  npm version [major|minor|patch] -m "Version %s"
   ```
 
-  Commit if necessary. The commit message should be "authors".
-
-- Write the changelog
-
-  You can use `git log --oneline <last version tag>..HEAD` to get a list of changes.
-
-  Summarize them concisely in `CHANGELOG.md`. The commit  message should be "changelog".
-
-- Update the version
+- Push the commit and the tag:
 
   ```
-  npm version [major|minor|patch]
+  git push origin master v<version>
   ```
 
-  This creates both a commit and a git tag.
+### 2. Build the release files
 
-- Make a PR
-
-  Once the PR is reviewed, merge it:
+- Run the `package` workflow on the tag and wait for it to finish:
 
   ```
-  git push origin <branch-name>:master
+  gh workflow run package.yml --ref v<version>
+  gh run list --workflow package.yml --limit 1
+  gh run watch <run-id>
   ```
 
-  This makes it so that the commit hash on master matches the commit hash of the version tag.
-
-  Finally, run:
+- Download its artifacts into an empty folder outside the repo. Each platform is extracted into its own subfolder (`linux`, `macos`, `windows`):
 
   ```
-  git push --tags
+  gh run download <run-id> -D <folder>
   ```
 
-### 2. Create the release binaries
+- Move the files to upload into one folder: the `.dmg`, the Mac, Windows and Linux `.zip` files, `WebTorrentSetup-v<version>.exe`, and the `.deb` and `.rpm` files. Leave out the `.nupkg`. Compare with the previous release: it should be the same set of files, no more, no less.
 
-- On a Mac:
-
-  ```
-  npm run package -- darwin --arch=universal --sign
-  ```
-
-  Move the `.zip` and `.dmg` file somewhere because the next step wipes the `dist/` folder away.
+- In that folder, write the checksums file:
 
   ```
-  npm run package -- linux --sign
+  shasum -a 256 * > SHA256SUMS.txt
   ```
 
-- On Windows, or in a Windows VM:
+### 3. Create a draft release
 
-  ```
-  npm run package -- win32 --sign
-  ```
+```
+gh release create v<version> --verify-tag --draft --title v<version> --notes-file <notes.md> <folder>/*
+```
 
-- Then, upload the release binaries to Github:
+The title is just the tag. Start the notes with the "Unofficial build" paragraph, and reuse the "Before you install" and "Install" sections of the previous release with the version numbers updated.
 
-  ```
-  npm run gh-release
-  ```
-
-  Follow the URL to a newly created Github release page. Manually upload the binaries from
-  `webtorrent-desktop/dist/`. Open the previous release in another tab, and make sure that you
-  are uploading the same set of files, no more, no less.
-
-### 3. Test it
+### 4. Test it
 
 **This is the most important part.**
 
-- Manually download the binaries for each platform from Github.
+- Download the files for each platform from the draft release.
 
-  **Do not use your locally built binaries.** Modern OSs treat executables differently if they've
-  been downloaded, even though the files are byte for byte identical. This ensures that the
-  codesigning worked and is valid.
+  **Do not use your locally built files.** Operating systems treat downloaded apps differently, even when the files are byte for byte identical.
 
-- Smoke test WebTorrent Desktop on each platform. Before a release, check that the following basic use cases work correctly:
+- Smoke test WebTorrent Desktop on each platform:
 
-  1. Click "Play" to stream a built-in torrent (e.g. Sintel)
-    - Ensure that seeking to undownloaded region works and plays immediately.
-    - Ensure that sintel.mp4 gets downloaded to `~/Downloads`.
+  1. Click "Play" to stream a built-in torrent (e.g. Sintel).
+     - Seeking to a part that hasn't downloaded yet should play right away.
+     - The file should be saved to the download folder (`~/Downloads` by default).
 
-  2. Check that the auto-updater works
-    - Open the console and check for the line "No update available" to indicate that the auto-updater is working. (If the auto updater does not run, users will successfully auto update to this new version, and then be stuck there forever.)
+  2. Add a .torrent file by drag and drop.
+     - It should be added to the list and start downloading.
 
-  3. Add a new .torrent file via drag-and-drop.
-    - Ensure that it gets added to the list and starts downloading.
+  3. Remove a torrent and its data.
+     - The files should be removed from the download folder.
 
-  4. Remove a torrent from the client
-    - Ensure that the file is removed from `~/Downloads`
+  4. Create and seed a new torrent by drag and drop.
+     - The torrent should be created and start seeding.
 
-  5. Create and seed a new a torrent via drag-and-drop.
-    - Ensure that the torrent gets created and seeding begins.
+### 5. Publish it
 
-### 4. Ship it
-
-- Update the website
-
-  Create a pull request in [webtorrent.io](https://github.com/webtorrent/webtorrent.io). Update
-  `config.js`, updating the desktop app version.
-
-  Once this PR is merged and Feross redeploys the WebTorrent website,
-  hundreds of thousands of users around the world will start auto updating. **Merge with care.**
+```
+gh release edit v<version> --draft=false --latest
+```

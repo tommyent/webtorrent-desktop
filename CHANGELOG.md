@@ -1,5 +1,7 @@
 # WebTorrent Desktop Version History
 
+Release notes for v0.25.0 and later, the releases of this fork, are on the [GitHub Releases page](https://github.com/tommyent/webtorrent-desktop/releases). The history below is from the original project.
+
 ## v0.24.0 - 2020-08-28
 
 ### Added
