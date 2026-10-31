@@ -402,7 +402,12 @@ function buildDarwin (cb) {
       fs.rmSync(targetPath, { force: true })
 
       try {
-        fs.cpSync(appPath, path.join(stagingPath, path.basename(appPath)), { recursive: true })
+        const stagedApp = path.join(stagingPath, path.basename(appPath))
+        // Keep the framework's relative symlinks as they are: by default cpSync
+        // rewrites them to absolute paths into dist/, and the app can't start
+        fs.cpSync(appPath, stagedApp, { recursive: true, verbatimSymlinks: true })
+        const frameworkLink = path.join(stagedApp, 'Contents', 'Frameworks', 'Electron Framework.framework', 'Versions', 'Current')
+        if (path.isAbsolute(fs.readlinkSync(frameworkLink))) throw new Error('DMG copy has absolute framework symlinks')
         fs.symlinkSync('/Applications', path.join(stagingPath, 'Applications'))
         cp.execFileSync('hdiutil', [
           'create',
