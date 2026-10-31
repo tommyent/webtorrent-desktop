@@ -333,6 +333,10 @@ function buildDarwin (cb) {
         })
       } else {
         printWarning()
+        // Without a Developer ID, sign ad hoc. A download whose only signature is the
+        // linker's (no sealed resources) is reported as "damaged", with no Open Anyway.
+        cp.execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath])
+        cp.execFileSync('codesign', ['--verify', '--deep', '--strict', appPath])
         pack(cb)
       }
     } else {
