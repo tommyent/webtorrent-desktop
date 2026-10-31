@@ -28,7 +28,7 @@ Release files are built by the `package` workflow on GitHub Actions and publishe
   gh run watch <run-id>
   ```
 
-- Download its artifacts into an empty folder outside the repo. Each platform is extracted into its own subfolder (`linux`, `macos`, `windows`):
+- Download its artifacts into an empty folder outside the repo. Each platform is extracted into its own subfolder (`linux-x64`, `linux-arm64`, `macos`, `windows`):
 
   ```
   gh run download <run-id> -D <folder>

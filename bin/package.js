@@ -11,6 +11,8 @@ const os = require('os')
 const path = require('path')
 const zip = require('cross-zip')
 
+const checkNativeArch = require('./check-native-arch')
+
 // Runs callback-style tasks one after another, like run-series did
 function series (tasks, cb) {
   const next = (err) => {
@@ -225,26 +227,17 @@ const linux = {
   // Build for Linux.
   platform: 'linux',
 
-  // Build x64, armv7l, and arm64 binaries.
-  arch: argv.arch ? [argv.arch] : ['x64', 'armv7l', 'arm64']
+  // npm installs some native addons for the build machine only, so build each CPU's
+  // package on that CPU (the release workflow uses x64 and arm64 runners).
+  arch: argv.arch ? [argv.arch] : [process.arch],
+
+  // Every native addon the app loads must run on the target CPU
+  afterPrune: [checkNativeArch]
 
   // Note: Application icon for Linux is specified via the BrowserWindow `icon` option.
 }
 
 build().catch(printDone)
-
-function checkNativeArch ({ buildPath }) {
-  // Prebuilds in a darwin-x64 folder are loaded only on Intel; Linux and Windows
-  // prebuilds aren't Mach-O. Anything else is what the app loads on a Mac.
-  const addons = fs.readdirSync(buildPath, { recursive: true })
-    .filter(file => file.endsWith('.node') && !file.split(path.sep).includes('darwin-x64'))
-  for (const file of addons) {
-    const type = cp.execFileSync('file', ['-b', path.join(buildPath, file)], { encoding: 'utf8' })
-    if (type.includes('Mach-O') && !type.includes('arm64')) {
-      throw new Error(`${file} has no Apple Silicon code: ${type.trim()}`)
-    }
-  }
-}
 
 function buildDarwin (cb) {
   const plist = require('plist')
@@ -684,6 +677,10 @@ function buildLinux (cb) {
 
     const inPath = path.join(DIST_PATH, path.basename(filesPath))
     const outPath = path.join(DIST_PATH, `${BUILD_NAME}-linux-${destArch}.zip`)
+    // A zip can't keep chrome-sandbox setuid root, and Chromium aborts without it where
+    // user namespaces are restricted (Ubuntu 24.04+), so start it as the .deb's menu entry does
+    fs.writeFileSync(path.join(inPath, 'webtorrent-desktop'),
+      '#!/bin/sh\nexec "$(dirname "$(readlink -f "$0")")/WebTorrent" --no-sandbox "$@"\n', { mode: 0o755 })
     zip.zipSync(inPath, outPath)
 
     console.log(`Linux: Created ${destArch} zip.`)

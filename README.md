@@ -129,7 +129,7 @@ The following optional arguments are available:
 
 - `--sign` - Sign the application (Mac, Windows)
 - `--arch=[architecture]` - Override the target architecture. macOS supports only `arm64`;
-  Linux supports `arm64`, `armv7l`, and `x64` (all three by default);
+  Linux supports `arm64`, `armv7l`, and `x64` (the build machine's by default);
   Windows supports only `x64`.
 - `--package=[type]` - Package single output type.
    - `deb` - Debian package
@@ -163,14 +163,11 @@ $ npm run package -- darwin --package=zip
 
 #### Linux build notes
 
-The Linux app can be packaged on Linux or macOS. On Windows, use `--package=zip`: the `.deb` and
-`.rpm` tools support only macOS and Linux.
-
-If packaging from Mac, install system dependencies with Homebrew by running:
-
-```
-npm run install-system-deps
-```
+Package the Linux app on Linux, on the CPU it's for: npm installs some native addons for the
+build machine only, and the build fails if an addon in the app doesn't match the target. The
+release builds use x64 and arm64 runners. The Linux zip's `webtorrent-desktop` script starts the
+app without Chromium's sandbox, as the `.deb`'s menu entry does, since a zip can't keep its
+sandbox helper setuid root.
 
 #### Recommended readings to start working in the app
 
