@@ -26,6 +26,22 @@ test('video-streaming', function (t) {
     .then(() => process.env.CI
       ? null
       : setup.screenshotCreateOrCompare(app, t, 'play-torrent-bbb'))
+    .then(async () => {
+      const duration = await app.page.evaluate(() => {
+        const video = document.querySelector('.letterbox > video')
+        Object.defineProperty(video, 'duration', { configurable: true, get: () => NaN })
+        return window.state.playing.duration
+      })
+      await app.client.moveToObject('.scrub-bar')
+      const result = await app.page.evaluate(() => ({
+        duration: window.state.playing.duration,
+        previewXCoord: window.state.playing.previewXCoord,
+        playerVisible: !!document.querySelector('.player')
+      }))
+      t.equal(result.duration, duration, 'unknown media duration keeps the last known duration')
+      t.ok(result.previewXCoord !== null, 'seek preview was activated')
+      t.ok(result.playerVisible, 'seek preview keeps the player visible')
+    })
     // Hit escape
     .then(() => app.webContents.executeJavaScript('dispatch("escapeBack")'))
     .then(() => setup.wait())

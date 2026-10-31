@@ -5,6 +5,7 @@ const path = require('node:path')
 process.env.NODE_ENV = 'test'
 
 const sent = []
+const stopped = []
 const ready = {}
 global.window = {
   webtorrent: {
@@ -13,7 +14,7 @@ global.window = {
     player: { close () {}, update () {} },
     torrent: {
       startServer: (torrentKey, requestId) => sent.push([torrentKey, requestId]),
-      stopServer () {},
+      stopServer: keepExternal => stopped.push(keepExternal),
       onceReady: (infoHash, callback) => { ready[infoHash] = callback }
     },
     window: { setAspectRatio () {} }
@@ -55,7 +56,8 @@ assert.equal(state.playing.isReady, true)
 // External player waiting for A, Back, play B in the app: B's reply must not open B externally.
 const MediaController = require('../src/renderer/controllers/media-controller')
 const opened = []
-window.webtorrent.externalPlayer = { open: (...args) => opened.push(args), quit () {} }
+const quit = []
+window.webtorrent.externalPlayer = { open: (...args) => opened.push(args), quit: () => quit.push(true) }
 window.webtorrent.torrent.onceServerRunning = callback => { serverRunning = callback }
 let serverRunning
 const media = new MediaController(state)
@@ -64,6 +66,7 @@ playback.startServer(a)
 const [, external] = sent.at(-1)
 media.openExternalPlayer()
 playback.closePlayer()
+assert.equal(stopped.at(-1), false, 'Back before external launch revokes the stream')
 playback.startServer(b)
 const [, internal] = sent.at(-1)
 torrents.torrentServerRunning(reply(a, external))
@@ -72,4 +75,13 @@ torrents.torrentServerRunning(reply(b, internal))
 serverRunning()
 assert.deepEqual(opened, [], 'abandoned external playback opens nothing')
 
-console.log('Playback server regressions passed: ready after Back, late reply after reopen, external player after Back')
+state.playing.fileIndex = 0
+state.server = { ...reply(a, 1), filePaths: ['a.mp4?token=kept'], token: 'kept' }
+media.openExternalPlayer()
+assert.equal(state.playing.externalPlayerOpened, true)
+assert.equal(state.playing.externalPlayerToken, 'kept')
+playback.closePlayer()
+assert.equal(stopped.at(-1), true, 'Back after external launch keeps its stream')
+assert.deepEqual(quit, [], 'Back leaves the external player running')
+
+console.log('Playback server regressions passed: ready after Back, late reply, external stream after Back')

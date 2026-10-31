@@ -140,7 +140,7 @@ contextBridge.exposeInMainWorld('webtorrent', {
     start: (...args) => ipcRenderer.send('wt-start-torrenting', ...args),
     startServer: (torrentKey, requestId) => ipcRenderer.send('wt-start-server', torrentKey, requestId),
     stop: torrentKey => ipcRenderer.send('wt-stop-torrenting', torrentKey),
-    stopServer: () => ipcRenderer.send('wt-stop-server')
+    stopServer: keepExternal => ipcRenderer.send('wt-stop-server', keepExternal)
   },
   window: {
     setAspectRatio: ratio => ipcRenderer.send('setAspectRatio', ratio),

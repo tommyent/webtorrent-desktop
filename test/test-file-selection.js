@@ -128,6 +128,23 @@ async function main () {
   assert.deepEqual(messages('wt-done', 2), [])
   assert.equal(lastProgress(2).torrent.selectedDone, false)
 
+  const serverReply = id => sent.find(([name, info]) => name === 'wt-server-running' && info.requestId === id)?.[1]
+  const status = async url => (await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(3000) })).status
+  ipc.emit('wt-start-server', {}, 1, 501)
+  const firstGrant = await until('first stream grant', () => serverReply(501))
+  const firstURL = firstGrant.localURL + '/' + firstGrant.filePaths[0]
+  assert.equal(await status(firstURL), 200)
+  ipc.emit('wt-stop-server', {}, true)
+  assert.equal(await status(firstURL), 200, 'Back retains the external stream')
+  ipc.emit('wt-start-server', {}, 2, 502)
+  const secondGrant = await until('second stream grant', () => serverReply(502))
+  assert.equal(await status(firstURL), 200, 'new playback does not revoke the older external stream')
+  const firstToken = new URL(firstURL).searchParams.get('token')
+  ipc.emit('wt-release-external-server', {}, firstToken)
+  assert.equal(await status(firstURL), 403, 'external player exit revokes only its stream')
+  ipc.emit('wt-stop-server', {}, false)
+  assert.equal(await status(secondGrant.localURL + '/' + secondGrant.filePaths[0]), 403)
+
   await new Promise(resolve => seeder.destroy(resolve))
   await new Promise(resolve => window.client.destroy(resolve))
   fs.rmSync(dir, { recursive: true, force: true })

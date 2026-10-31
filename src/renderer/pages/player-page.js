@@ -120,7 +120,9 @@ function renderMedia (state) {
     // Save video position
     const file = state.getPlayingFileSummary()
     file.currentTime = state.playing.currentTime = mediaElement.currentTime
-    file.duration = state.playing.duration = mediaElement.duration
+    if (Number.isFinite(mediaElement.duration) && mediaElement.duration > 0) {
+      file.duration = state.playing.duration = mediaElement.duration
+    }
 
     // Save selected subtitle
     if (state.playing.subtitles.selectedIndex !== -1) {

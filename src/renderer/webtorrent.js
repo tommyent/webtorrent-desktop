@@ -81,6 +81,7 @@ let bandwidthOptions = null
 // client's lifetime.
 let serverReady = null
 let playbackGrant = null
+const externalGrants = new Map()
 // Bumped by every start/stop request, so a torrent that becomes ready after its
 // player was closed or replaced doesn't publish a server.
 let serverRequest = 0
@@ -127,8 +128,10 @@ function init () {
     getAudioMetadata(torrentKey, index))
   ipcRenderer.on('wt-start-server', (e, torrentKey, requestId) =>
     startServer(torrentKey, requestId))
-  ipcRenderer.on('wt-stop-server', () =>
-    stopServer())
+  ipcRenderer.on('wt-stop-server', (e, keepExternal) =>
+    stopServer(keepExternal))
+  ipcRenderer.on('wt-release-external-server', (e, token) =>
+    releaseExternalServer(token))
   ipcRenderer.on('wt-select-files', (e, torrentKey, selections) => {
     const torrent = getTorrentByKey(torrentKey)
     if (!torrent) return onError(new Error('selectFiles: missing torrent ' + torrentKey))
@@ -208,6 +211,10 @@ function whenReady (torrent, fn) {
 
 function stopTorrenting (torrentKey) {
   console.log('--- STOP TORRENTING: ', torrentKey)
+  if (playbackGrant?.torrentKey === torrentKey) releaseGrant()
+  for (const [token, grant] of externalGrants) {
+    if (grant.torrentKey === torrentKey) releaseExternalServer(token)
+  }
   const torrent = getTorrentByKey(torrentKey)
   if (torrent) torrent.destroy()
 }
@@ -461,9 +468,21 @@ function releaseGrant () {
   playbackGrant = null
 }
 
-function stopServer () {
+function stopServer (keepExternal) {
   serverRequest++
-  releaseGrant()
+  if (keepExternal && playbackGrant) {
+    externalGrants.set(playbackGrant.token, playbackGrant)
+    playbackGrant = null
+  } else releaseGrant()
+}
+
+function releaseExternalServer (token) {
+  if (playbackGrant?.token === token) return releaseGrant()
+  const grant = externalGrants.get(token)
+  if (grant) {
+    externalGrants.delete(token)
+    grant.release()
+  }
 }
 
 console.log('Initializing...')

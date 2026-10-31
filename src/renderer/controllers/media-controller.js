@@ -59,6 +59,8 @@ module.exports = class MediaController {
       state.playing.isReady = true
 
       const mediaURL = Playlist.getCurrentLocalURL(state)
+      playing.externalPlayerToken = new URL(mediaURL).searchParams.get('token')
+      playing.externalPlayerOpened = true
       api.externalPlayer.open(
         state.saved.prefs.externalPlayerPath,
         mediaURL,

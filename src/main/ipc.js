@@ -422,7 +422,7 @@ function init () {
     menu.togglePlaybackControls(false)
     shortcuts.disable()
     thumbar.disable()
-    externalPlayer.spawn(playerPath, mediaURL, title)
+    externalPlayer.spawn(playerPath, mediaURL, title, saved)
   })
 
   ipcMain.on('quitExternalPlayer', () => {

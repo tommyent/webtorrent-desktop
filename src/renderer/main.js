@@ -283,6 +283,14 @@ const dispatchHandlers = {
   mediaControlsMouseLeave: () => controllers.media().controlsMouseLeave(),
   openExternalPlayer: () => controllers.media().openExternalPlayer(),
   externalPlayerNotFound: () => controllers.media().externalPlayerNotFound(),
+  externalPlayerModalClosed: token => {
+    if (state.playing.location === 'external' && state.playing.externalPlayerToken === token) state.modal = null
+  },
+  externalPlayerExited: (token, code) => {
+    if (state.playing.location !== 'external' || state.playing.externalPlayerToken !== token) return
+    if (code === 0) backToList()
+    else controllers.media().externalPlayerNotFound()
+  },
 
   // Remote casting: Chromecast, Airplay, etc
   toggleCastMenu: (deviceType) => controllers.cast().toggleMenu(deviceType),

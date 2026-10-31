@@ -344,12 +344,9 @@ module.exports = class PlaybackController {
   closePlayer () {
     console.log('closePlayer')
 
-    // Quit any external players, like Chromecast/Airplay/etc or VLC
     const state = this.state
+    const keepExternalStream = state.playing.location === 'external' && state.playing.externalPlayerOpened === true
     this.cast.cancel()
-    if (state.playing.location === 'external') {
-      api.externalPlayer.quit()
-    }
 
     // Save volume (this session only, not in state.saved)
     state.previousVolume = state.playing.volume
@@ -364,8 +361,8 @@ module.exports = class PlaybackController {
     }
     restoreBounds(state)
 
-    // Tell the WebTorrent process to kill the torrent-to-HTTP server
-    api.torrent.stopServer()
+    // Keep an external stream alive after Back until its player exits
+    api.torrent.stopServer(keepExternalStream)
 
     api.player.close()
 
