@@ -158,8 +158,15 @@ function wait (ms) {
 }
 
 // Quit the app, end the test, either in success (!err) or failure (err)
-function endTest (app, t, err) {
+async function endTest (app, t, err) {
   if (app.rendererErrors.size) t.fail([...app.rendererErrors].join('\n'))
+  if (err) {
+    // The app's error popover is cut short in Playwright's log: print it in full
+    const shown = await app.webContents
+      .executeJavaScript('JSON.stringify(window.state.errors.map(error => error.message))')
+      .catch(() => '[]')
+    if (shown !== '[]') t.comment('Errors shown in the app: ' + shown)
+  }
   return app.stop().then(function () {
     // Guard: tape's timeoutAfter may have already ended the test; calling
     // t.end() again throws and cascades into every remaining test.

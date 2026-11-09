@@ -33,11 +33,15 @@ class FolderWatcher {
       awaitWriteFinish: true,
       disableGlobbing: true,
       // Don't track other files in the folder: a shared Downloads folder has
-      // many, and each one being written is polled until it stops growing. The
-      // watcher doesn't always say whether a path is a file (not on a Mac for
-      // new files), so anything with another extension counts as one then.
+      // many, and each one being written is polled until it stops growing.
+      // The watcher asks about each path twice on Linux and Windows, the second
+      // time saying whether it is a file. On a Mac it says so only for what was
+      // there at the start, so a new path with another extension counts as a
+      // file there (a new folder with a dot in its name still reports the
+      // torrents inside it, because Mac events arrive per file).
       ignored: (filePath, stats) => path.resolve(filePath) !== path.resolve(torrentsFolderPath) &&
-        (stats ? stats.isFile() : !!path.extname(filePath)) && !/\.torrent$/i.test(filePath)
+        (stats ? stats.isFile() : process.platform === 'darwin' && !!path.extname(filePath)) &&
+        !/\.torrent$/i.test(filePath)
     }
     this.watcher = chokidar.watch(torrentsFolderPath, options)
     this.watcher
