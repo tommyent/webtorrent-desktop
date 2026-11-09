@@ -52,6 +52,8 @@ async function main () {
   }
   assert.equal(windowsPath.join('C:\\posters', 'abc.jpg'), path.win32.join('C:\\posters', 'abc.jpg'))
   assert.equal(windowsPath.join('C:\\posters\\', 'abc.jpg'), path.win32.join('C:\\posters\\', 'abc.jpg'))
+  assert.equal(windowsPath.join('/downloads', 'a.mp4'), path.win32.join('/downloads', 'a.mp4'))
+  assert.equal(windowsPath.join('C:/downloads/', 'a.mp4'), path.win32.join('C:/downloads/', 'a.mp4'))
   const TorrentPlayer = require('../src/renderer/lib/torrent-player')
   assert.equal(TorrentPlayer.isPlayable({ name: 'Movie.MKV' }), true)
   assert.equal(TorrentPlayer.isPlayable({ name: '.mp4' }), false, 'a dotfile has no extension')

@@ -15,8 +15,9 @@ function create (sep) {
     return dot > 0 && base !== '..' ? base.slice(dot) : ''
   }
 
-  // Joins a native folder path and one name inside it (no '..' or '.' handling)
+  // Joins a folder path and one name inside it (no '..' or '.' handling)
   function join (dir, name) {
+    if (windows) dir = dir.replace(/\//g, sep) // as path.join does there
     return dir.endsWith(sep) ? dir + name : dir + sep + name
   }
 
