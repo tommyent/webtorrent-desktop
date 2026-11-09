@@ -69,7 +69,7 @@ async function diskChecks () {
     const stream = `http://127.0.0.1:9/webtorrent/${hash}/a%20file.mp4?token=example`
     const torrent = { infoHash: hash, completed: true, path: downloads, files: [{ path: 'a file.mp4', length: 5 }] }
     await externalPlayer.spawn('/Applications/IINA.app', stream, 'A', { torrents: [torrent] })
-    assert.equal(spawned.at(-1).args.at(-1), fs.realpathSync(file), 'completed file opens from disk')
+    assert.equal(spawned.at(-1).args.at(-1), fs.realpathSync.native(file), 'completed file opens from disk')
     assert.deepEqual(released.at(-1), ['wt-release-external-server', 'example'], 'disk handoff releases stream')
     spawned.at(-1).proc.emit('close', 0)
 
