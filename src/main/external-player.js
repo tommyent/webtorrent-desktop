@@ -21,48 +21,78 @@ function checkInstall (playerPath, cb) {
   process.nextTick(() => cb(null))
 }
 
+// Bumped by kill(), so a launch still waiting (for the disk, or for VLC to be
+// found) when playback was abandoned doesn't open a player afterwards
+let kills = 0
+
 function spawn (playerPath, url, title, saved) {
   const token = new URL(url).searchParams.get('token')
-  const filePath = completedFilePath(saved, url)
-  url = filePath || url
-  if (playerPath) return spawnExternal(playerPath, [url], token, !!filePath)
+  const generation = kills
+  const completed = completedFile(saved, url)
+  // Only a finished file needs a look at the disk; a stream launches right away
+  if (!completed) return launch(null)
+  return fileOnDisk(completed).then(launch)
 
-  // Try to find and use VLC if external player is not specified
-  vlcCommand((err, vlcPath) => {
-    if (err) {
-      windows.webtorrent.send('wt-release-external-server', token)
-      return windows.main.dispatch('externalPlayerExited', token, 1)
-    }
-    const args = [
-      '--play-and-exit',
-      '--quiet',
-      `--meta-title=${JSON.stringify(title)}`,
-      url
-    ]
-    spawnExternal(vlcPath, args, token, !!filePath)
-  })
+  function launch (filePath) {
+    if (generation !== kills) return windows.webtorrent.send('wt-release-external-server', token)
+    url = filePath || url
+    if (playerPath) return spawnExternal(playerPath, [url], token, !!filePath)
+
+    // Try to find and use VLC if external player is not specified
+    vlcCommand((err, vlcPath) => {
+      if (generation !== kills) return windows.webtorrent.send('wt-release-external-server', token)
+      if (err) {
+        windows.webtorrent.send('wt-release-external-server', token)
+        return windows.main.dispatch('externalPlayerExited', token, 1)
+      }
+      const args = [
+        '--play-and-exit',
+        '--quiet',
+        `--meta-title=${JSON.stringify(title)}`,
+        url
+      ]
+      spawnExternal(vlcPath, args, token, !!filePath)
+    })
+  }
 }
 
-function completedFilePath (saved, mediaURL) {
+// The finished torrent and file a stream URL points at, if any
+function completedFile (saved, mediaURL) {
   if (!saved?.torrents) return null
   const match = /^\/webtorrent\/([0-9a-f]{40})\/(.+)$/.exec(new URL(mediaURL).pathname)
   if (!match) return null
   const torrent = saved.torrents.find(t => t.completed && t.infoHash === match[1])
   const file = torrent?.files?.find(f => typeof f.path === 'string' &&
     f.path.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/') === match[2])
-  if (!file) return null
+  return file ? { torrent, file } : null
+}
 
-  try {
-    const root = fs.realpathSync(torrent.path)
-    const target = fs.realpathSync(path.resolve(root, file.path))
+// Its path on disk, or null (the player then gets the stream) when the file
+// isn't there in full, lies outside the download folder, or the drive doesn't
+// answer within 3 seconds. Async, so a slow drive can't freeze the app.
+// A check that timed out is still waiting on the drive and holds one of the
+// process's few file threads, so a download folder gets one check at a time:
+// until it really ends, further launches from that folder get the stream.
+const checking = new Set()
+
+function fileOnDisk ({ torrent, file }) {
+  if (checking.has(torrent.path)) return Promise.resolve(null)
+  checking.add(torrent.path)
+  const check = (async () => {
+    const root = await fs.promises.realpath(torrent.path)
+    const target = await fs.promises.realpath(path.resolve(root, file.path))
     const relative = path.relative(root, target)
     if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return null
-    const stat = fs.statSync(target)
+    const stat = await fs.promises.stat(target)
     return stat.isFile() && stat.size === file.length ? target : null
-  } catch { return null }
+  })().catch(() => null).finally(() => checking.delete(torrent.path))
+  let timer
+  const late = new Promise(resolve => { timer = setTimeout(resolve, 3000, null) })
+  return Promise.race([check, late]).finally(() => clearTimeout(timer))
 }
 
 function kill () {
+  kills++
   for (const [child, token] of processes) {
     log(`Killing external player, pid ${child.pid}`)
     processes.delete(child)

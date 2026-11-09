@@ -114,13 +114,13 @@ async function main () {
   const torrent = { infoHash: 'a'.repeat(40), path: dir, files: [{ path: 'sample.srt' }] }
   permissions.recordTorrent(torrent)
   dataPath.setTorrentsAccessor(permissions.getTorrents)
-  dataPath.assertDataPath(file)
-  assert.throws(() => dataPath.assertDataPath(dir))
-  assert.throws(() => dataPath.assertDataPath(vtt))
+  await dataPath.assertDataPath(file)
+  await assert.rejects(dataPath.assertDataPath(dir))
+  await assert.rejects(dataPath.assertDataPath(vtt))
   const link = path.join(dir, 'escape')
   await fs.symlink(os.tmpdir(), link)
   permissions.recordTorrent({ ...torrent, files: [{ path: 'escape/elsewhere' }] })
-  assert.throws(() => dataPath.assertDataPath(path.join(link, 'elsewhere')))
+  await assert.rejects(dataPath.assertDataPath(path.join(link, 'elsewhere')))
 
   // Individually picked files keep their paths without granting their folders
   // or including unselected siblings.
@@ -198,8 +198,8 @@ async function main () {
     [{ status: 'paused' }, 'Paused'],
     [{ status: 'paused', completed: true }, 'Not seeding'],
     [{ status: 'new' }, 'Starting…'],
-    [{ status: 'downloading' }, 'Verifying'],
-    [{ status: 'downloading', progress: { ready: false, numPeers: 0, downloadSpeed: 0 } }, 'Verifying'],
+    [{ status: 'downloading' }, 'Checking files'],
+    [{ status: 'downloading', progress: { ready: false, numPeers: 0, downloadSpeed: 0 } }, 'Checking files'],
     [{ status: 'downloading', progress: { ready: true, numPeers: 0, downloadSpeed: 0 } }, 'Waiting for peers'],
     [{ status: 'downloading', progress: { ready: true, numPeers: 0, downloadSpeed: 100 } }, 'Downloading'],
     [{ status: 'seeding', progress: { ready: true, numPeers: 0 } }, 'Seeding']

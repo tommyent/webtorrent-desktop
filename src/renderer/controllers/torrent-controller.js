@@ -8,11 +8,41 @@ const { dispatch } = require('../lib/dispatcher')
 // what was last saved: save unfinished torrents' maps this often while they download
 const MAP_SAVE_INTERVAL = 60 * 1000
 
+// A torrent that is on but still not ready after this long gets its download
+// folder checked, to tell a drive that stopped answering from slow peers
+const FOLDER_CHECK_AFTER = 10 * 1000
+
 module.exports = class TorrentController {
   constructor (state) {
     this.state = state
     this.mapSavedAt = Date.now()
     this.mapSavedDownloads = ''
+    this.waitingSince = new Map() // torrentKey -> when it was first seen not ready
+  }
+
+  // Called every few seconds. Fills state.folderStatus (folder -> 'ok',
+  // 'missing' or 'stalled') for the folders of torrents that are slow to start.
+  async checkFolders (now = Date.now()) {
+    const folders = new Set()
+    const waiting = new Set()
+    for (const s of this.state.saved.torrents) {
+      const starting = s.status === 'new' || (s.status === 'downloading' && !(s.progress && s.progress.ready))
+      if (!starting || s.error) continue
+      waiting.add(s.torrentKey)
+      if (!this.waitingSince.has(s.torrentKey)) this.waitingSince.set(s.torrentKey, now)
+      if (now - this.waitingSince.get(s.torrentKey) >= FOLDER_CHECK_AFTER) {
+        folders.add(s.path || this.state.saved.prefs.downloadPath)
+      }
+    }
+    for (const key of this.waitingSince.keys()) if (!waiting.has(key)) this.waitingSince.delete(key)
+
+    const status = {}
+    await Promise.all([...folders].filter(Boolean).map(async folder => {
+      status[folder] = await api.downloads.probe(folder).catch(() => undefined)
+    }))
+    const changed = JSON.stringify(status) !== JSON.stringify(this.state.folderStatus || {})
+    this.state.folderStatus = status
+    if (changed) dispatch('update')
   }
 
   torrentParsed (torrentKey, infoHash, magnetURI) {
@@ -87,6 +117,7 @@ module.exports = class TorrentController {
   torrentMetadata (torrentKey, torrentInfo) {
     // Summarize torrent
     const torrentSummary = this.getTorrentSummary(torrentKey)
+    if (!torrentSummary) return // removed before its metadata arrived
     torrentSummary.status = 'downloading'
     torrentSummary.name = torrentSummary.displayName || torrentInfo.name
     torrentSummary.path = torrentInfo.path
@@ -195,12 +226,23 @@ module.exports = class TorrentController {
 
   torrentPosterSaved (torrentKey, posterFileName) {
     const torrentSummary = this.getTorrentSummary(torrentKey)
+    if (!torrentSummary) {
+      // Removed while its poster was being made: don't leave the image behind.
+      // Posters are named by info hash, so the same torrent added again shares
+      // the file: give it the poster instead of deleting it.
+      const again = this.state.saved.torrents.find(t => t.infoHash && posterFileName.startsWith(t.infoHash + '.'))
+      if (!again) return api.torrent.deleteMetadata(null, posterFileName).catch(console.error)
+      if (again.posterFileName) return
+      again.posterFileName = posterFileName
+      return dispatch('stateSave')
+    }
     torrentSummary.posterFileName = posterFileName
     dispatch('stateSave')
   }
 
   torrentAudioMetadata (infoHash, index, info) {
     const torrentSummary = this.getTorrentSummary(infoHash)
+    if (!torrentSummary) return // removed while its tags were being read
     const fileSummary = torrentSummary.files[index]
     fileSummary.audioInfo = info
     dispatch('update')

@@ -22,16 +22,23 @@ class FolderWatcher {
     this.torrentsFolderPath = torrentsFolderPath
     if (!torrentsFolderPath) return
 
-    const glob = `${torrentsFolderPath}/**/*.torrent`
-    log('Folder Watcher: watching: ', glob)
+    log('Folder Watcher: watching: ', torrentsFolderPath)
 
+    // Watch the folder itself, not a pattern built from its path: characters
+    // such as parentheses in a folder name are pattern syntax, and a folder
+    // with them was never matched. disableGlobbing keeps the path literal.
     const options = {
       ignoreInitial: true,
-      awaitWriteFinish: true
+      awaitWriteFinish: true,
+      disableGlobbing: true,
+      // Don't track other files in the folder (a shared Downloads folder has
+      // many). Where the watcher gives no file details, the check below decides.
+      ignored: (filePath, stats) => !!stats && stats.isFile() && !/\.torrent$/i.test(filePath)
     }
-    this.watcher = chokidar.watch(glob, options)
+    this.watcher = chokidar.watch(torrentsFolderPath, options)
     this.watcher
       .on('add', (path) => {
+        if (!/\.torrent$/i.test(path)) return
         log('Folder Watcher: added torrent: ', path)
         this.window.dispatch('addTorrent', path)
       })

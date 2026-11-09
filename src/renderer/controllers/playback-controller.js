@@ -42,7 +42,7 @@ module.exports = class PlaybackController {
 
           if (index === undefined || initialized) index = torrentSummary.mostRecentFileIndex
           if (index === undefined) index = torrentSummary.files.findIndex(TorrentPlayer.isPlayable)
-          if (index === undefined) return cb(new UnplayableTorrentError())
+          if (index === -1) return cb(new UnplayableTorrentError())
 
           initialized = true
 

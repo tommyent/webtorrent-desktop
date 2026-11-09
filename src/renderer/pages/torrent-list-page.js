@@ -5,7 +5,7 @@ const { LinearProgress } = require('../components/controls')
 
 const TorrentSummary = require('../lib/torrent-summary')
 const TorrentPlayer = require('../lib/torrent-player')
-const { dispatcher } = require('../lib/dispatcher')
+const { dispatch, dispatcher } = require('../lib/dispatcher')
 const { calculateEta } = require('../lib/time')
 
 module.exports = class TorrentList extends React.Component {
@@ -24,13 +24,14 @@ module.exports = class TorrentList extends React.Component {
         </div>
       )
     }
-    let torrents = state.saved.torrents
-    if (state.saved.prefs.sortCompletedFirst) {
-      // Older saves recorded completion only through status and file modtimes.
-      const completed = t => t.completed ?? (t.status === 'seeding' || !!t.fileModtimes)
-      torrents = [...torrents].sort((a, b) => Number(completed(b)) - Number(completed(a)))
+    if (state.updateAvailable) {
+      contents.push(
+        <p key='update-available'>
+          WebTorrent {state.updateAvailable} is available. <a href='#' onClick={dispatcher('openReleasePage')}>Get it from the releases page</a>
+        </p>
+      )
     }
-    const torrentElems = torrents.map(
+    const torrentElems = TorrentSummary.getDisplayOrder(state).map(
       (torrentSummary) => this.renderTorrent(torrentSummary)
     )
     contents.push(...torrentElems)
@@ -102,6 +103,12 @@ module.exports = class TorrentList extends React.Component {
 
     // If it's downloading/seeding then show progress info
     const prog = torrentSummary.progress
+    const state = this.props.state
+    // Set while a torrent is slow to start: see TorrentController.checkFolders
+    const folderStatus = (state.folderStatus || {})[torrentSummary.path || state.saved.prefs.downloadPath]
+    const folderProblem = folderStatus === 'stalled'
+      ? 'Download folder not responding'
+      : folderStatus === 'missing' ? 'Download folder missing' : null
     let progElems
     if (torrentSummary.error) {
       progElems = [getErrorMessage(torrentSummary)]
@@ -113,8 +120,10 @@ module.exports = class TorrentList extends React.Component {
         renderPercentProgress(),
         renderTotalProgress(),
         renderPeers(),
-        renderSpeeds(),
-        renderEta()
+        // Until its files are checked a torrent transfers no file data: the
+        // speed is only peer chatter, and a time left from it means nothing
+        prog.ready && renderSpeeds(),
+        prog.ready && renderEta()
       ]
     } else {
       progElems = [
@@ -212,13 +221,13 @@ module.exports = class TorrentList extends React.Component {
       if (torrentSummary.status === 'paused') {
         status = torrentSummary.completed || prog?.progress === 1 ? 'Not seeding' : 'Paused'
       } else if (torrentSummary.status === 'downloading') {
-        if (!prog || !prog.ready) status = 'Verifying'
+        if (!prog || !prog.ready) status = folderProblem || 'Checking files'
         else if (prog.numPeers === 0 && prog.downloadSpeed === 0) status = 'Waiting for peers'
         else status = 'Downloading'
       } else if (torrentSummary.status === 'seeding') {
         status = 'Seeding'
       } else if (torrentSummary.status === 'new') {
-        status = 'Starting…'
+        status = folderProblem || 'Starting…'
       } else {
         status = ''
       }
@@ -266,8 +275,11 @@ module.exports = class TorrentList extends React.Component {
         className='icon remove-select'
         aria-checked={isMarked}
         aria-label={'Select ' + (torrentSummary.name || 'torrent') + ' for removal'}
-        title='Select for removal'
-        onClick={dispatcher('toggleRemovalSelection', torrentSummary.torrentKey)}
+        title='Select for removal (Shift-click selects the rows in between)'
+        onClick={e => {
+          e.stopPropagation()
+          dispatch('toggleRemovalSelection', torrentSummary.torrentKey, e.shiftKey)
+        }}
       >
         {isMarked ? 'close' : ''}
       </button>

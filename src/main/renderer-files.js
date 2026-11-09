@@ -8,7 +8,26 @@ module.exports = {
   copyTorrentFile,
   deleteTorrentMetadata,
   inspectCreateInput,
-  pathExists
+  pathExists,
+  probeFolder
+}
+
+// Folders whose check hasn't come back. A drive that stopped answering (a
+// network share, a sleeping disk) never fails: the call just hangs, and each
+// hung call holds one of the process's few file threads, so only one at a time.
+const probing = new Set()
+
+// 'ok', 'missing', or 'stalled' when the folder doesn't answer in time
+async function probeFolder (filePath, stat = fs.stat, timeout = 3000) {
+  assertPath(filePath)
+  if (probing.has(filePath)) return 'stalled'
+  probing.add(filePath)
+  const check = stat(filePath)
+    .then(stats => stats.isDirectory() ? 'ok' : 'missing', () => 'missing')
+    .finally(() => probing.delete(filePath))
+  let timer
+  const late = new Promise(resolve => { timer = setTimeout(resolve, timeout, 'stalled') })
+  return Promise.race([check, late]).finally(() => clearTimeout(timer))
 }
 
 async function checkDownloadPath (filePath) {

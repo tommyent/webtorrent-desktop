@@ -5,24 +5,26 @@ module.exports = {
   getTorrentId,
   getFileOrFolder,
   getRemovalSelection,
+  getDisplayOrder,
   getResumeBitfield
 }
 
 const api = require('./api')
 const config = require('./config')
+const { join } = require('./local-path')
 
 // Expects a torrentSummary
 // Returns an absolute path to the torrent file, or null if unavailable
 function getTorrentPath (torrentSummary) {
   if (!torrentSummary || !torrentSummary.torrentFileName) return null
-  return api.path.join(config.TORRENT_PATH, torrentSummary.torrentFileName)
+  return join(config.TORRENT_PATH, torrentSummary.torrentFileName)
 }
 
 // Expects a torrentSummary
 // Returns an absolute path to the poster image, or null if unavailable
 function getPosterPath (torrentSummary) {
   if (!torrentSummary || !torrentSummary.posterFileName) return null
-  const posterPath = api.path.join(config.POSTER_PATH, torrentSummary.posterFileName)
+  const posterPath = join(config.POSTER_PATH, torrentSummary.posterFileName)
   // Work around a Chrome bug (reproduced in vanilla Chrome, not just Electron):
   // Backslashes in URLS in CSS cause bizarre string encoding issues
   return posterPath.replace(/\\/g, '/')
@@ -56,7 +58,16 @@ function getFileOrFolder (torrentSummary) {
   const ts = torrentSummary
   if (!ts.path || !ts.files || ts.files.length === 0) return null
   const dirname = ts.files[0].path.split(api.path.sep)[0]
-  return api.path.join(ts.path, dirname)
+  return join(ts.path, dirname)
+}
+
+// The torrents in the order the list shows them
+function getDisplayOrder (state) {
+  const torrents = state.saved.torrents
+  if (!state.saved.prefs.sortCompletedFirst) return torrents
+  // Older saves recorded completion only through status and file modtimes.
+  const completed = t => t.completed ?? (t.status === 'seeding' || !!t.fileModtimes)
+  return [...torrents].sort((a, b) => Number(completed(b)) - Number(completed(a)))
 }
 
 // The rows checked for the header's Remove button that are still in the list

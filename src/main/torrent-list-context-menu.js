@@ -28,7 +28,8 @@ function open (info) {
         click: () => {
           // Confine to a known torrent download dir, like the shell IPC handlers
           require('./data-path').assertDataPath(info.fileOrFolder)
-          require('./shell').showItemInFolder(info.fileOrFolder)
+            .then(() => require('./shell').showItemInFolder(info.fileOrFolder))
+            .catch(err => main.send('error', err.message))
         }
       },
       { type: 'separator' }

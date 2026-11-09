@@ -44,6 +44,15 @@ class Header extends React.Component {
           {loc.url() === 'home' && removalCount > 0 && (
             <button
               type='button'
+              className='select-all'
+              onClick={dispatcher('selectAllForRemoval')}
+            >
+              {removalCount === state.saved.torrents.length ? 'Select none' : 'Select all'}
+            </button>
+          )}
+          {loc.url() === 'home' && removalCount > 0 && (
+            <button
+              type='button'
               className='remove-selected'
               aria-label={'Remove ' + removalCount + ' selected torrents'}
               onClick={dispatcher('confirmRemoveSelected')}

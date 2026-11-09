@@ -59,35 +59,37 @@ assert.deepEqual(dispatched.slice(-2), [
 ], 'older window exiting does not replace the newer playback')
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'webtorrent-player-'))
-try {
-  const downloads = path.join(dir, 'downloads')
-  fs.mkdirSync(downloads)
-  const file = path.join(downloads, 'a file.mp4')
-  fs.writeFileSync(file, 'video')
-  const hash = 'a'.repeat(40)
-  const stream = `http://127.0.0.1:9/webtorrent/${hash}/a%20file.mp4?token=example`
-  const torrent = { infoHash: hash, completed: true, path: downloads, files: [{ path: 'a file.mp4', length: 5 }] }
-  externalPlayer.spawn('/Applications/IINA.app', stream, 'A', { torrents: [torrent] })
-  assert.equal(spawned.at(-1).args.at(-1), fs.realpathSync(file), 'completed file opens from disk')
-  assert.deepEqual(released.at(-1), ['wt-release-external-server', 'example'], 'disk handoff releases stream')
-  spawned.at(-1).proc.emit('close', 0)
-
-  externalPlayer.spawn('/Applications/IINA.app', stream, 'A', { torrents: [{ ...torrent, completed: false }] })
-  assert.equal(spawned.at(-1).args.at(-1), stream, 'incomplete file keeps the stream')
-  spawned.at(-1).proc.emit('close', 0)
-
-  if (process.platform !== 'win32') {
-    const outside = path.join(dir, 'outside.mp4')
-    fs.writeFileSync(outside, 'video')
-    fs.symlinkSync(outside, path.join(downloads, 'escape.mp4'))
-    const escaped = { ...torrent, files: [{ path: 'escape.mp4', length: 5 }] }
-    const escapeURL = `http://127.0.0.1:9/webtorrent/${hash}/escape.mp4?token=example`
-    externalPlayer.spawn('/Applications/IINA.app', escapeURL, 'A', { torrents: [escaped] })
-    assert.equal(spawned.at(-1).args.at(-1), escapeURL, 'symlink outside the download folder keeps the stream')
+async function diskChecks () {
+  try {
+    const downloads = path.join(dir, 'downloads')
+    fs.mkdirSync(downloads)
+    const file = path.join(downloads, 'a file.mp4')
+    fs.writeFileSync(file, 'video')
+    const hash = 'a'.repeat(40)
+    const stream = `http://127.0.0.1:9/webtorrent/${hash}/a%20file.mp4?token=example`
+    const torrent = { infoHash: hash, completed: true, path: downloads, files: [{ path: 'a file.mp4', length: 5 }] }
+    await externalPlayer.spawn('/Applications/IINA.app', stream, 'A', { torrents: [torrent] })
+    assert.equal(spawned.at(-1).args.at(-1), fs.realpathSync(file), 'completed file opens from disk')
+    assert.deepEqual(released.at(-1), ['wt-release-external-server', 'example'], 'disk handoff releases stream')
     spawned.at(-1).proc.emit('close', 0)
+
+    externalPlayer.spawn('/Applications/IINA.app', stream, 'A', { torrents: [{ ...torrent, completed: false }] })
+    assert.equal(spawned.at(-1).args.at(-1), stream, 'incomplete file keeps the stream')
+    spawned.at(-1).proc.emit('close', 0)
+
+    if (process.platform !== 'win32') {
+      const outside = path.join(dir, 'outside.mp4')
+      fs.writeFileSync(outside, 'video')
+      fs.symlinkSync(outside, path.join(downloads, 'escape.mp4'))
+      const escaped = { ...torrent, files: [{ path: 'escape.mp4', length: 5 }] }
+      const escapeURL = `http://127.0.0.1:9/webtorrent/${hash}/escape.mp4?token=example`
+      await externalPlayer.spawn('/Applications/IINA.app', escapeURL, 'A', { torrents: [escaped] })
+      assert.equal(spawned.at(-1).args.at(-1), escapeURL, 'symlink outside the download folder keeps the stream')
+      spawned.at(-1).proc.emit('close', 0)
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
   }
-} finally {
-  fs.rmSync(dir, { recursive: true, force: true })
 }
 
 // No player chosen: IINA becomes the default only on a Mac with IINA and without VLC.
@@ -102,4 +104,5 @@ assert.equal(chosen({ externalPlayerPath: '' }, ['/Applications/IINA.app', '/App
 assert.equal(chosen({ externalPlayerPath: '/Applications/mpv.app' }, ['/Applications/IINA.app']), '/Applications/mpv.app')
 assert.equal(chosen({ externalPlayerPath: '' }, ['/Applications/IINA.app'], 'linux'), '')
 
-console.log('External player regressions passed: completed files, stream release, concurrent players, path containment, Mac apps, exit codes, IINA default')
+diskChecks().then(() => console.log('External player regressions passed: completed files, stream release, concurrent players, path containment, Mac apps, exit codes, IINA default'))
+  .catch(err => { console.error(err); process.exitCode = 1 })

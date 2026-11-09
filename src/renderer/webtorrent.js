@@ -504,13 +504,7 @@ function sendAudioMetadata (torrent, index) {
   const options = {
     native: false,
     skipCovers: true,
-    fileSize: file.length,
-    observer: () => {
-      ipcRenderer.send('wt-audio-metadata', infoHash, index, {
-        common: metadata.common,
-        format: metadata.format
-      })
-    }
+    fileSize: file.length
   }
   const onMetadata = file.done
     // If completed; use direct file access

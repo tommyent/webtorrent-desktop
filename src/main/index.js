@@ -176,6 +176,12 @@ function delayedInit (state) {
     folderWatcher.start()
   }
 
+  if (!config.IS_TEST && state.saved.prefs.checkForUpdates !== false) {
+    require('./update-check')(require('electron').net.fetch, config.APP_VERSION)
+      .then(version => { if (version) windows.main.dispatch('updateAvailable', version) })
+      .catch(err => log('Update check failed:', err.message))
+  }
+
   if (process.platform === 'win32') {
     const userTasks = require('./user-tasks')
     userTasks.init()

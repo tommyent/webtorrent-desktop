@@ -216,7 +216,8 @@ table {
   font: 12px system-ui, sans-serif;
 }
 
-.header .remove-selected {
+.header .remove-selected,
+.header .select-all {
   height: 24px;
   padding: 0 10px;
   border: none;
@@ -230,7 +231,17 @@ table {
   background: #f44336;
 }
 
-.header .remove-selected:focus-visible {
+.header .select-all {
+  margin-right: 6px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.header .select-all:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.header .remove-selected:focus-visible,
+.header .select-all:focus-visible {
   outline: 2px solid #63b5ff;
   outline-offset: 2px;
 }

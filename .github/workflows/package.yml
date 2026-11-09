@@ -1,6 +1,8 @@
 name: package
-on: 
+on:
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   package_linux:
     # npm installs some native addons for the build machine only, so each CPU gets its own runner
@@ -13,14 +15,16 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions/setup-node@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
       with:
         node-version: '22'
         cache: npm
     - run: npm ci
     - run: npm run package -- linux --arch=${{ matrix.arch }}
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
       with:
         name: linux-${{ matrix.arch }}
         path: |
@@ -30,14 +34,16 @@ jobs:
   package_macos:
     runs-on: macos-15
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions/setup-node@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
       with:
         node-version: '22'
         cache: npm
     - run: npm ci
     - run: npm run package -- darwin
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
       with:
         name: macos
         path: |
@@ -46,14 +52,16 @@ jobs:
   package_windows:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions/setup-node@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
       with:
         node-version: '22'
         cache: npm
     - run: npm ci
     - run: npm run package -- win32
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
       with:
         name: windows
         path: |

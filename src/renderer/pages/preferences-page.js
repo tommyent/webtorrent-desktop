@@ -226,6 +226,20 @@ class PreferencesPage extends React.Component {
     dispatch('updatePreferences', 'soundNotifications', isChecked)
   }
 
+  // On unless switched off: one request to GitHub's releases page per launch
+  checkForUpdatesCheckbox () {
+    return (
+      <Preference>
+        <Checkbox
+          className='control'
+          checked={this.props.state.saved.prefs.checkForUpdates !== false}
+          label='Check for new versions when WebTorrent opens'
+          onCheck={(e, isChecked) => dispatch('updatePreferences', 'checkForUpdates', isChecked)}
+        />
+      </Preference>
+    )
+  }
+
   handleSetDefaultApp () {
     dispatch('updatePreferences', 'isFileHandler', true)
   }
@@ -309,6 +323,7 @@ class PreferencesPage extends React.Component {
         <PreferencesSection title='General'>
           {this.setStartupCheckbox()}
           {this.soundNotificationsCheckbox()}
+          {this.checkForUpdatesCheckbox()}
         </PreferencesSection>
         <PreferencesSection title='Trackers'>
           {this.setGlobalTrackers()}

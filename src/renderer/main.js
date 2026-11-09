@@ -100,7 +100,7 @@ function onState (err, _state) {
   setGlobalTrackers()
 
   // Restart everything we were torrenting last time the app ran
-  resumeTorrents()
+  controllers.torrentList().resumeAtStartup()
 
   // Initialize the React root
   createRoot(document.querySelector('#body')).render(
@@ -158,6 +158,9 @@ function onState (err, _state) {
 function delayedInit () {
   // Warn if the download dir is gone, eg b/c an external drive is unplugged
   checkDownloadPath()
+
+  // Tell a download folder that stopped answering from a torrent that is slow to start
+  setInterval(() => controllers.torrent().checkFolders().catch(console.error), 5000)
 
   // ...window visibility state.
   document.addEventListener('webkitvisibilitychange', onVisibilityChange)
@@ -227,8 +230,9 @@ const dispatchHandlers = {
     controllers.torrentList().confirmDeleteTorrent(infoHash, deleteData),
   deleteTorrent: (infoHash, deleteData) =>
     controllers.torrentList().deleteTorrent(infoHash, deleteData),
-  toggleRemovalSelection: (torrentKey) =>
-    controllers.torrentList().toggleRemovalSelection(torrentKey),
+  toggleRemovalSelection: (torrentKey, range) =>
+    controllers.torrentList().toggleRemovalSelection(torrentKey, range),
+  selectAllForRemoval: () => controllers.torrentList().selectAllForRemoval(),
   confirmRemoveSelected: () =>
     controllers.torrentList().confirmRemoveSelected(),
   deleteTorrents: (torrentKeys, deleteData) =>
@@ -334,6 +338,8 @@ const dispatchHandlers = {
       .catch(onError)
   },
   uncaughtError: (proc, err) => console.error(proc, err),
+  updateAvailable: (version) => { state.updateAvailable = version },
+  openReleasePage: () => api.shell.openReleasePage().catch(onError),
   stateSave: () => State.save(state),
   stateSaveImmediate: () => State.saveImmediate(state),
   update: () => {} // No-op, just trigger an update
@@ -410,19 +416,6 @@ function escapeBack () {
 
 function setGlobalTrackers () {
   controllers.torrentList().setGlobalTrackers(state.getGlobalTrackers())
-}
-
-// Starts all torrents that aren't paused on program startup
-function resumeTorrents () {
-  state.saved.torrents
-    .map((torrentSummary) => {
-      // Torrent keys are ephemeral, reassigned each time the app runs.
-      // On startup, give all torrents a key, even the ones that are paused.
-      torrentSummary.torrentKey = state.nextTorrentKey++
-      return torrentSummary
-    })
-    .filter((s) => s.status !== 'paused')
-    .forEach((s) => controllers.torrentList().startTorrentingSummary(s.torrentKey))
 }
 
 // Set window dimensions to match video dimensions or fill the screen

@@ -146,12 +146,20 @@ module.exports = class TorrentListController {
     }
 
     this.pauseTorrent(torrentSummary, true)
+    // Paused by hand: playback priority must not switch it back on later
+    this.forgetResume(torrentSummary)
+  }
+
+  forgetResume (torrentSummary) {
+    const saved = this.state.saved
+    saved.torrentsToResume = (saved.torrentsToResume || []).filter(infoHash => infoHash !== torrentSummary.infoHash)
   }
 
   pauseAllTorrents () {
     this.state.saved.torrents.forEach((torrentSummary) => {
       if (ACTIVE.includes(torrentSummary.status)) this.pauseTorrent(torrentSummary, false)
     })
+    this.state.saved.torrentsToResume = [] // "Pause all" is a pause by hand too
     sound.play('DISABLE')
   }
 
@@ -189,6 +197,19 @@ module.exports = class TorrentListController {
     console.log('Playback Priority: paused torrents: ', this.state.saved.torrentsToResume)
   }
 
+  // Starts all torrents that aren't paused on program startup, then the ones
+  // playback priority had paused when the app was quit mid-playback
+  resumeAtStartup () {
+    const torrents = this.state.saved.torrents
+    // Torrent keys are ephemeral, reassigned each time the app runs.
+    // On startup, give all torrents a key, even the ones that are paused.
+    torrents.forEach(torrentSummary => { torrentSummary.torrentKey = this.state.nextTorrentKey++ })
+    torrents
+      .filter(s => s.status !== 'paused')
+      .forEach(s => this.startTorrentingSummary(s.torrentKey))
+    this.resumePausedTorrents()
+  }
+
   resumePausedTorrents () {
     console.log('Playback Priority: resuming paused torrents')
     if (!this.state.saved.torrentsToResume || !this.state.saved.torrentsToResume.length) return
@@ -222,11 +243,29 @@ module.exports = class TorrentListController {
   }
 
   // The header's Remove button: the rows checked in the removal column
-  toggleRemovalSelection (torrentKey) {
+  // range (a Shift-click) checks every row from the last one clicked to this one
+  toggleRemovalSelection (torrentKey, range) {
     const selection = this.state.removalSelection
+    const anchor = this.removalAnchor
+    this.removalAnchor = torrentKey
+    if (range && anchor !== undefined && anchor !== torrentKey) {
+      const keys = TorrentSummary.getDisplayOrder(this.state).map(torrent => torrent.torrentKey)
+      const [from, to] = [keys.indexOf(anchor), keys.indexOf(torrentKey)].sort((a, b) => a - b)
+      if (from > -1) {
+        this.state.removalSelection = [...new Set([...selection, ...keys.slice(from, to + 1)])]
+        return
+      }
+    }
     this.state.removalSelection = selection.includes(torrentKey)
       ? selection.filter(key => key !== torrentKey)
       : [...selection, torrentKey]
+  }
+
+  // The header's Select all button: every row, or none when all are checked
+  selectAllForRemoval () {
+    const keys = this.state.saved.torrents.map(torrent => torrent.torrentKey)
+    const all = keys.every(key => this.state.removalSelection.includes(key))
+    this.state.removalSelection = all ? [] : keys
   }
 
   confirmRemoveSelected () {

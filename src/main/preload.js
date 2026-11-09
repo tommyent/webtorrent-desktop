@@ -46,7 +46,8 @@ contextBridge.exposeInMainWorld('webtorrent', {
     setBadge: value => ipcRenderer.send('setBadge', value)
   },
   downloads: {
-    checkPath: filePath => ipcRenderer.invoke('checkDownloadPath', filePath)
+    checkPath: filePath => ipcRenderer.invoke('checkDownloadPath', filePath),
+    probe: filePath => ipcRenderer.invoke('probeDownloadPath', filePath)
   },
   externalPlayer: {
     check: filePath => new Promise(resolve => {

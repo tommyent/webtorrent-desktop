@@ -16,11 +16,11 @@ async function trashTorrentData (infoHash, trashItem) {
   const root = path.resolve(torrent.path)
   const files = torrent.files.map(file => path.resolve(root, file.path))
   const folder = path.resolve(root, torrent.files[0].path.split(/[\\/]/)[0])
-  files.forEach(assertDataPath)
+  for (const file of files) await assertDataPath(file)
 
   const trashPaths = []
   if (!files.includes(folder) && await exists(folder)) {
-    assertDataPath(folder)
+    await assertDataPath(folder)
     if (await holdsOnly(folder, new Set(files))) trashPaths.push(folder)
   }
   if (!trashPaths.length) {
@@ -42,7 +42,7 @@ async function trashTorrentData (infoHash, trashItem) {
     if (response !== 1) return false
     // Only unlink recorded files: unrelated files can appear during the dialog.
     for (const file of files) {
-      assertDataPath(file)
+      await assertDataPath(file)
       if (await exists(file)) await fs.promises.unlink(file)
     }
   }
@@ -73,26 +73,33 @@ function exists (filePath) {
   })
 }
 
-function assertDataPath (filePath) {
+// Rejects (never throws synchronously) unless the path is a known torrent's
+// file or top folder. Async: a blocking check on a drive that stopped
+// answering would freeze the whole app.
+async function assertDataPath (filePath) {
   if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) throw new TypeError('Invalid data path')
   const target = path.resolve(filePath)
-  const allowed = getTorrents().some(torrent => {
-    if (!torrent || !torrent.path || !torrent.files || !torrent.files.length) return false
+  for (const torrent of getTorrents()) {
+    if (!torrent || !torrent.path || !torrent.files || !torrent.files.length) continue
     const root = path.resolve(torrent.path)
     const files = torrent.files.map(file => path.resolve(root, file.path))
     const folder = path.resolve(root, torrent.files[0].path.split(/[\\/]/)[0])
-    if (target === root || (!files.includes(target) && target !== folder)) return false
+    if (target === root || (!files.includes(target) && target !== folder)) continue
     const relative = path.relative(root, target)
-    if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return false
-    // Reject symlinks anywhere below the download root, including the target.
-    let current = root
-    for (const part of relative.split(path.sep)) {
-      current = path.join(current, part)
-      try { if (fs.lstatSync(current).isSymbolicLink()) return false } catch (err) {
-        if (err.code !== 'ENOENT') throw err
-      }
+    if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) continue
+    if (!(await hasSymlink(root, relative))) return
+  }
+  throw new TypeError('Path is not known torrent data')
+}
+
+// A symlink anywhere below the download root, including the target itself
+async function hasSymlink (root, relative) {
+  let current = root
+  for (const part of relative.split(path.sep)) {
+    current = path.join(current, part)
+    try { if ((await fs.promises.lstat(current)).isSymbolicLink()) return true } catch (err) {
+      if (err.code !== 'ENOENT') throw err
     }
-    return true
-  })
-  if (!allowed) throw new TypeError('Path is not known torrent data')
+  }
+  return false
 }

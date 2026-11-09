@@ -168,6 +168,10 @@ function init () {
     assertMainSender(e)
     return rendererFiles.checkDownloadPath(filePath)
   })
+  ipcMain.handle('probeDownloadPath', (e, filePath) => {
+    assertMainSender(e)
+    return rendererFiles.probeFolder(filePath)
+  })
   ipcMain.handle('torrentPathExists', (e, filePath) => {
     assertMainSender(e)
     return rendererFiles.pathExists(filePath)
@@ -185,10 +189,10 @@ function init () {
     return rendererFiles.deleteTorrentMetadata(torrentFileName, posterFileName)
   })
 
-  ipcMain.handle('loadSubtitles', (e, filePaths) => {
+  ipcMain.handle('loadSubtitles', async (e, filePaths) => {
     assertMainSender(e)
     for (const filePath of filePaths) {
-      try { permissions.assertSelected(filePath, 'subtitles', 'open') } catch { require('./data-path').assertDataPath(filePath) }
+      try { permissions.assertSelected(filePath, 'subtitles', 'open') } catch { await require('./data-path').assertDataPath(filePath) }
     }
     return require('./subtitles').load(filePaths)
   })
@@ -296,11 +300,13 @@ function init () {
 
   ipcMain.on('openPath', (e, filePath) => {
     require('./data-path').assertDataPath(filePath)
-    require('./shell').openPath(filePath)
+      .then(() => require('./shell').openPath(filePath))
+      .catch(err => windows.main.send('error', err.message))
   })
   ipcMain.on('showItemInFolder', (e, filePath) => {
     require('./data-path').assertDataPath(filePath)
-    require('./shell').showItemInFolder(filePath)
+      .then(() => require('./shell').showItemInFolder(filePath))
+      .catch(err => windows.main.send('error', err.message))
   })
   ipcMain.handle('trashTorrentData', (e, infoHash) => {
     assertMainSender(e)
