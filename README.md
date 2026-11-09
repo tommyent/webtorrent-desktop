@@ -20,7 +20,7 @@ WebTorrent 3, and React 19, with:
 - Faster startup and resume of unfinished downloads.
 - A start/pause switch and checkboxes for removing multiple torrents.
 - IINA support on macOS, alongside VLC and other external players.
-- No telemetry, crash reports, announcements, or update checks (see [Privacy](#privacy)).
+- No telemetry, crash reports or announcements. One update check at startup, which you can turn off (see [Privacy](#privacy)).
 
 <p align="center">
   <a href="https://github.com/tommyent/webtorrent-desktop/actions/workflows/ci.yml"><img src="https://github.com/tommyent/webtorrent-desktop/actions/workflows/ci.yml/badge.svg" alt="GitHub CI action"></a>
@@ -179,9 +179,15 @@ https://react.dev/learn
 
 ### Privacy
 
-This fork does not send telemetry or crash reports, fetch announcements, or check
-for upstream updates. Install updates manually. Torrent networking (peers,
-trackers, DHT, and web seeds) still operates normally.
+This fork does not send telemetry or crash reports or fetch announcements.
+
+When it opens, it asks GitHub's releases API once whether a newer version of
+this fork exists, and shows a line in the torrent list if so. The request
+carries no identifier, but GitHub sees your IP address, as any website does.
+Turn it off in Preferences → General → "Check for new versions when WebTorrent
+opens". Nothing is downloaded or installed for you: install updates manually.
+
+Torrent networking (peers, trackers, DHT, and web seeds) still operates normally.
 
 ## License
 
