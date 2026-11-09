@@ -1,4 +1,5 @@
 const chokidar = require('chokidar')
+const path = require('path')
 const log = require('./log')
 
 class FolderWatcher {
@@ -31,16 +32,19 @@ class FolderWatcher {
       ignoreInitial: true,
       awaitWriteFinish: true,
       disableGlobbing: true,
-      // Don't track other files in the folder (a shared Downloads folder has
-      // many). Where the watcher gives no file details, the check below decides.
-      ignored: (filePath, stats) => !!stats && stats.isFile() && !/\.torrent$/i.test(filePath)
+      // Don't track other files in the folder: a shared Downloads folder has
+      // many, and each one being written is polled until it stops growing. The
+      // watcher doesn't always say whether a path is a file (not on a Mac for
+      // new files), so anything with another extension counts as one then.
+      ignored: (filePath, stats) => path.resolve(filePath) !== path.resolve(torrentsFolderPath) &&
+        (stats ? stats.isFile() : !!path.extname(filePath)) && !/\.torrent$/i.test(filePath)
     }
     this.watcher = chokidar.watch(torrentsFolderPath, options)
     this.watcher
-      .on('add', (path) => {
-        if (!/\.torrent$/i.test(path)) return
-        log('Folder Watcher: added torrent: ', path)
-        this.window.dispatch('addTorrent', path)
+      .on('add', (filePath) => {
+        if (!/\.torrent$/i.test(filePath)) return
+        log('Folder Watcher: added torrent: ', filePath)
+        this.window.dispatch('addTorrent', filePath)
       })
 
     this.watching = true

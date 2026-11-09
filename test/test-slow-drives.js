@@ -196,9 +196,16 @@ async function main () {
     fs.writeFileSync(path.join(folder, 'a.torrent'), 'x')
     fs.writeFileSync(path.join(folder, 'sub', 'B.TORRENT'), 'x')
     fs.writeFileSync(path.join(folder, 'notes.txt'), 'x')
-    for (let i = 0; i < 100 && added.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 100))
+    // A folder made after the watch began, with a dot in its name
+    fs.mkdirSync(path.join(folder, 'Season.2'))
+    await new Promise(resolve => setTimeout(resolve, 500))
+    fs.writeFileSync(path.join(folder, 'Season.2', 'c.torrent'), 'x')
+    for (let i = 0; i < 100 && added.length < 3; i++) await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 500))
+    const tracked = Object.values(watcher.watcher.getWatched()).flat()
     watcher.stop()
-    assert.deepEqual(added.sort(), ['a.torrent', path.join('sub', 'B.TORRENT')])
+    assert.deepEqual(added.sort(), [path.join('Season.2', 'c.torrent'), 'a.torrent', path.join('sub', 'B.TORRENT')])
+    assert.ok(!tracked.includes('notes.txt'), 'other files in the folder are not tracked')
   } finally {
     fs.rmSync(base, { recursive: true, force: true })
   }
