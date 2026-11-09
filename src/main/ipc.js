@@ -130,7 +130,7 @@ function init () {
 
   ipcMain.handle('openHelpPage', (e, page) => {
     assertMainSender(e)
-    const urls = { vlc: 'https://www.videolan.org/vlc/', releases: 'https://github.com/tommyent/webtorrent-desktop/releases' }
+    const urls = { vlc: 'https://www.videolan.org/vlc/', releases: 'https://github.com/tommyent/webtorrent-desktop/releases/latest' }
     if (!Object.hasOwn(urls, page)) throw new TypeError('Unknown help page')
     return electron.shell.openExternal(urls[page])
   })

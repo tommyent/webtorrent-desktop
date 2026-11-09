@@ -267,8 +267,38 @@ async function main () {
     state: { updateAvailable: '0.27.0', saved: { prefs: {}, torrents: [] } }
   }).render())
   assert.ok(notice.includes('WebTorrent 0.27.0 is available'))
+  assert.ok(notice.includes('See what&#x27;s new and download it'))
 
-  console.log('Slow drive regressions passed: path helpers, resume after quit, manual pause, folder check, row status, late poster, watch folder, external player, removal boxes, update notice')
+  // The header's sort menu: name, size and progress, beside the two older orders
+  const TorrentSummary = require('../src/renderer/lib/torrent-summary')
+  const sortable = {
+    saved: {
+      prefs: {},
+      torrents: [
+        { torrentKey: 1, name: 'episode 10', files: [{ length: 5 }, { length: 5 }], progress: { progress: 0.5 } },
+        { torrentKey: 2, name: 'Episode 2', files: [{ length: 30 }], completed: true },
+        { torrentKey: 3, name: 'alpha', files: [{ length: 20 }], progress: { progress: 0.9 } },
+        { torrentKey: 4, files: [] }
+      ]
+    }
+  }
+  const order = sortBy => {
+    sortable.saved.prefs.sortBy = sortBy
+    return TorrentSummary.getDisplayOrder(sortable).map(t => t.torrentKey)
+  }
+  assert.deepEqual(order(undefined), [1, 2, 3, 4], 'as added')
+  assert.deepEqual(order('name'), [4, 3, 2, 1], 'by name: no name first, case ignored, 2 before 10')
+  assert.deepEqual(order('size'), [2, 3, 1, 4], 'largest first')
+  assert.deepEqual(order('progress'), [2, 3, 1, 4], 'most complete first; a finished torrent counts as all')
+  assert.deepEqual(order('completed'), [2, 1, 3, 4])
+  sortable.saved.prefs = { sortCompletedFirst: true }
+  assert.equal(TorrentSummary.getSortBy(sortable.saved.prefs), 'completed', 'an older save keeps its order')
+  const sortMenu = sortBy => renderHeader(new Header({
+    state: { saved: { prefs: { sortBy }, torrents: [] }, removalSelection: [], window: { title: '' }, location: { url: () => 'home', hasBack: () => false, hasForward: () => false } }
+  }).render())
+  assert.ok(sortMenu('size').includes('<option value="size" selected="">Size</option>'))
+
+  console.log('Slow drive regressions passed: path helpers, resume after quit, manual pause, folder check, row status, late poster, watch folder, external player, removal boxes, update notice, sort orders')
 }
 
 main().catch(err => {

@@ -6,6 +6,7 @@ module.exports = {
   getFileOrFolder,
   getRemovalSelection,
   getDisplayOrder,
+  getSortBy,
   getResumeBitfield
 }
 
@@ -61,13 +62,28 @@ function getFileOrFolder (torrentSummary) {
   return join(ts.path, dirname)
 }
 
-// The torrents in the order the list shows them
+// The header's sort choice. Older saves have only sortCompletedFirst.
+function getSortBy (prefs) {
+  return prefs.sortBy || (prefs.sortCompletedFirst ? 'completed' : 'added')
+}
+
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+// Older saves recorded completion only through status and file modtimes.
+const completed = t => t.completed ?? (t.status === 'seeding' || !!t.fileModtimes)
+const size = t => (t.files || []).reduce((sum, file) => sum + (file.length || 0), 0)
+// A torrent that isn't running reports no progress: finished counts as all, else none
+const progress = t => t.progress ? t.progress.progress : Number(completed(t))
+const ORDERS = {
+  completed: (a, b) => Number(completed(b)) - Number(completed(a)),
+  name: (a, b) => collator.compare(a.name || '', b.name || ''),
+  size: (a, b) => size(b) - size(a),
+  progress: (a, b) => progress(b) - progress(a)
+}
+
+// The torrents in the order the list shows them. Ties keep the order added.
 function getDisplayOrder (state) {
-  const torrents = state.saved.torrents
-  if (!state.saved.prefs.sortCompletedFirst) return torrents
-  // Older saves recorded completion only through status and file modtimes.
-  const completed = t => t.completed ?? (t.status === 'seeding' || !!t.fileModtimes)
-  return [...torrents].sort((a, b) => Number(completed(b)) - Number(completed(a)))
+  const order = ORDERS[getSortBy(state.saved.prefs)]
+  return order ? [...state.saved.torrents].sort(order) : state.saved.torrents
 }
 
 // The rows checked for the header's Remove button that are still in the list

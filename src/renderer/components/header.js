@@ -2,7 +2,7 @@ const React = require('react')
 
 const { dispatch, dispatcher } = require('../lib/dispatcher')
 const config = require('../lib/config')
-const { getRemovalSelection } = require('../lib/torrent-summary')
+const { getRemovalSelection, getSortBy } = require('../lib/torrent-summary')
 
 class Header extends React.Component {
   render () {
@@ -65,11 +65,20 @@ class Header extends React.Component {
               className='torrent-sort'
               aria-label='Sort torrents'
               title='Sort torrents'
-              value={state.saved.prefs.sortCompletedFirst ? 'completed' : 'added'}
-              onChange={e => dispatch('updatePreferences', 'sortCompletedFirst', e.target.value === 'completed')}
+              value={getSortBy(state.saved.prefs)}
+              onChange={e => {
+                // Read once: the first dispatch redraws the menu with the old choice
+                const sortBy = e.target.value
+                dispatch('updatePreferences', 'sortBy', sortBy)
+                // sortCompletedFirst is what versions before 0.26.6 read
+                dispatch('updatePreferences', 'sortCompletedFirst', sortBy === 'completed')
+              }}
             >
               <option value='added'>Recently added</option>
               <option value='completed'>Completed first</option>
+              <option value='name'>Name</option>
+              <option value='size'>Size</option>
+              <option value='progress'>Progress</option>
             </select>
           )}
           {this.getAddButton()}

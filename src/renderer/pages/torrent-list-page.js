@@ -27,7 +27,7 @@ module.exports = class TorrentList extends React.Component {
     if (state.updateAvailable) {
       contents.push(
         <p key='update-available'>
-          WebTorrent {state.updateAvailable} is available. <a href='#' onClick={dispatcher('openReleasePage')}>Get it from the releases page</a>
+          WebTorrent {state.updateAvailable} is available. <a href='#' onClick={dispatcher('openReleasePage')}>See what's new and download it</a>
         </p>
       )
     }
