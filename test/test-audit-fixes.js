@@ -197,17 +197,22 @@ async function main () {
   for (const [torrent, label] of [
     [{ status: 'paused' }, 'Paused'],
     [{ status: 'paused', completed: true }, 'Not seeding'],
+    [{ status: 'paused', progress: { ready: true, progress: 1, done: false, numPeers: 0 } }, 'Paused'],
     [{ status: 'new' }, 'Starting…'],
     [{ status: 'downloading' }, 'Checking files'],
     [{ status: 'downloading', progress: { ready: false, numPeers: 0, downloadSpeed: 0 } }, 'Checking files'],
     [{ status: 'downloading', progress: { ready: true, numPeers: 0, downloadSpeed: 0 } }, 'Waiting for peers'],
     [{ status: 'downloading', progress: { ready: true, numPeers: 0, downloadSpeed: 100 } }, 'Downloading'],
+    [{ status: 'downloading', progress: { ready: true, progress: 1, done: false, numPeers: 0, downloadSpeed: 0 } }, 'Finalizing…'],
+    [{ status: 'seeding', progress: { ready: true, progress: 1, done: true, numPeers: 0 } }, 'Seeding'],
     [{ status: 'seeding', progress: { ready: true, numPeers: 0 } }, 'Seeding']
   ]) {
     if (torrent.progress) torrent.progress = { progress: 0, downloaded: 0, length: 1000, ...torrent.progress }
     const markup = renderToStaticMarkup(list.renderTorrentMetadata(torrent))
     assert.ok(markup.includes('>' + label + '</span>'), label)
-    if (torrent.progress) assert.ok(markup.includes('0 peers'), 'zero peers is explicit')
+    if (label === 'Finalizing…') assert.ok(markup.includes('>100%</span>'), 'all bytes have arrived before completion')
+    if (label === 'Seeding') assert.ok(!markup.includes('Finalizing…'), 'finalizing ends when the torrent completes')
+    if (torrent.progress && torrent.status !== 'paused') assert.ok(markup.includes('0 peers'), 'zero peers is explicit')
   }
   const indices = []
   list.renderFileRow = (torrent, file, index) => { indices.push(index); return null }

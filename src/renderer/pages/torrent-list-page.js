@@ -219,9 +219,10 @@ module.exports = class TorrentList extends React.Component {
     function renderTorrentStatus () {
       let status
       if (torrentSummary.status === 'paused') {
-        status = torrentSummary.completed || prog?.progress === 1 ? 'Not seeding' : 'Paused'
+        status = torrentSummary.completed ? 'Not seeding' : 'Paused'
       } else if (torrentSummary.status === 'downloading') {
         if (!prog || !prog.ready) status = folderProblem || 'Checking files'
+        else if (prog.progress === 1 && !prog.done) status = 'Finalizing…'
         else if (prog.numPeers === 0 && prog.downloadSpeed === 0) status = 'Waiting for peers'
         else status = 'Downloading'
       } else if (torrentSummary.status === 'seeding') {
