@@ -4,7 +4,7 @@
 </h1>
 
 <p align="center">Stream video torrents while they download on macOS, Windows, and Linux.</p>
-<p align="center">An unofficial, maintained fork of <a href="https://github.com/webtorrent/webtorrent-desktop">WebTorrent Desktop</a>, with Apple Silicon builds and faster download resume.</p>
+<p align="center">An unofficial, maintained fork of <a href="https://github.com/webtorrent/webtorrent-desktop">WebTorrent Desktop</a>, with Apple Silicon builds, faster download resume, and no telemetry.</p>
 
 <p align="center">
   <a href="https://github.com/tommyent/webtorrent-desktop/releases/latest"><strong>Download</strong></a> ·
@@ -31,7 +31,7 @@ Click a picture to see it full size.
   </tr>
 </table>
 
-[All features →](docs/features.md)
+**This fork also adds:** download and upload limits, IINA support, safer torrent creation and removal, clearer drive and engine failures, and an optional update notice. [See every fork change →](docs/features.md#what-this-fork-adds)
 
 ## Install
 
