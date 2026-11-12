@@ -39,7 +39,7 @@ Click a picture to see it full size.
 2. Open the macOS DMG, run the Windows installer, or install the Linux `.deb`. Portable ZIP builds are also available.
 3. The macOS and Windows builds are not publisher-signed; follow that release's first-launch steps if your system blocks them.
 
-Tested on macOS 26.5.1 (Apple silicon), Windows 11 Pro 24H2 ARM64 (x64 build under emulation), and Ubuntu 26.04.1 LTS ARM64 (`.deb` and `.zip`).
+Tested on macOS 26.5.1 and 27.3 (Apple silicon), Windows 11 Pro 24H2 ARM64 (x64 build under emulation), and Ubuntu 26.04.1 LTS ARM64 (`.deb` and `.zip`).
 
 The [upstream website](https://webtorrent.io/desktop/) and `brew install --cask webtorrent` distribute the upstream app and do not include this fork's changes.
 
