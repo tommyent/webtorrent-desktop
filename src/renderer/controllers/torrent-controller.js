@@ -1,6 +1,7 @@
 const api = require('../lib/api')
 
 const TorrentSummary = require('../lib/torrent-summary')
+const { cleanTorrentName } = require('../lib/torrent-alias')
 const sound = require('../lib/sound')
 const { dispatch } = require('../lib/dispatcher')
 
@@ -118,8 +119,16 @@ module.exports = class TorrentController {
     // Summarize torrent
     const torrentSummary = this.getTorrentSummary(torrentKey)
     if (!torrentSummary) return // removed before its metadata arrived
+    const isFirstMetadata = !torrentSummary.files
     torrentSummary.status = 'downloading'
-    torrentSummary.name = torrentSummary.displayName || torrentInfo.name
+    torrentSummary.originalName = torrentInfo.name
+    if (torrentSummary.displayName) {
+      torrentSummary.name = torrentSummary.displayName
+    } else if (isFirstMetadata) {
+      torrentSummary.name = cleanTorrentName(torrentInfo.name)
+    } else if (!torrentSummary.name) {
+      torrentSummary.name = torrentInfo.name
+    }
     torrentSummary.path = torrentInfo.path
     // TODO: make torrentInfo immutable, save separately as torrentSummary.info
     // For now, check whether torrentSummary.files has already been set:

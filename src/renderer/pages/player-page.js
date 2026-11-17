@@ -296,7 +296,11 @@ function renderAudioMetadata (state) {
   const common = fileSummary.audioInfo.common || {}
 
   // Get audio track info
-  const title = common.title ? common.title : fileSummary.name
+  const torrentSummary = state.getPlayingTorrentSummary()
+  const fallbackTitle = torrentSummary && torrentSummary.files && torrentSummary.files.length === 1
+    ? (torrentSummary.name || fileSummary.name)
+    : fileSummary.name
+  const title = common.title ? common.title : fallbackTitle
 
   // Show a small info box in the middle of the screen with title/album/etc
   const elems = []
@@ -460,7 +464,11 @@ function renderCastScreen (state) {
 
   const isStarting = state.playing.location.endsWith('-pending')
   const castName = state.playing.castName
-  const fileName = state.getPlayingFileSummary().name || ''
+  const playingTorrent = state.getPlayingTorrentSummary()
+  const playingFile = state.getPlayingFileSummary()
+  const fileName = (playingTorrent && playingTorrent.files && playingTorrent.files.length === 1
+    ? playingTorrent.name
+    : playingFile && playingFile.name) || ''
   let castStatus
   if (isCast && isStarting) castStatus = 'Connecting to ' + castName + '...'
   else if (isCast && !isStarting) castStatus = 'Connected to ' + castName

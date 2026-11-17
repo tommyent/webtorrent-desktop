@@ -19,6 +19,7 @@ const Modals = {
   'open-torrent-address-modal': createGetter(
     () => require('../components/open-torrent-address-modal')
   ),
+  'rename-torrent-modal': createGetter(() => require('../components/rename-torrent-modal')),
   'remove-torrent-modal': createGetter(() => require('../components/remove-torrent-modal')),
   'unsupported-media-modal': createGetter(() => require('../components/unsupported-media-modal')),
   'delete-all-torrents-modal':

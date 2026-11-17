@@ -10,7 +10,7 @@ function setTorrentsAccessor (fn) { getTorrents = fn }
 // only if it holds nothing but this torrent's files. Otherwise only the
 // torrent's own files go, then any of its folders left empty are removed, so
 // other files in a folder with the same name stay where they are.
-async function trashTorrentData (infoHash, trashItem) {
+async function trashTorrentData (infoHash, trashItem, displayName) {
   const torrent = getTorrents().find(t => t && t.infoHash === infoHash)
   if (!torrent || !torrent.path || !torrent.files || !torrent.files.length) throw new TypeError('Not a known torrent')
   const root = path.resolve(torrent.path)
@@ -32,7 +32,7 @@ async function trashTorrentData (infoHash, trashItem) {
     const { dialog } = require('electron')
     const { response } = await dialog.showMessageBox(require('./windows').main.win, {
       type: 'warning',
-      message: `Permanently delete the remaining downloaded files for “${torrent.name || path.basename(folder)}”?`,
+      message: `Permanently delete the remaining downloaded files for “${displayName || torrent.name || path.basename(folder)}”?`,
       detail: `${err.message}\n\nThese files could not be moved to the Trash. Permanent deletion cannot be undone.\n\nDownload folder: ${root}`,
       buttons: ['Cancel', 'Delete Permanently'],
       defaultId: 0,

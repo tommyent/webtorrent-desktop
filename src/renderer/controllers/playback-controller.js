@@ -274,6 +274,9 @@ module.exports = class PlaybackController {
 
     const torrentSummary = TorrentSummary.getByKey(state, infoHash)
     const fileSummary = torrentSummary.files[index]
+    const displayTitle = torrentSummary.files.length === 1
+      ? (torrentSummary.name || fileSummary.name)
+      : fileSummary.name
 
     if (!TorrentPlayer.isPlayable(fileSummary)) {
       torrentSummary.mostRecentFileIndex = undefined
@@ -285,7 +288,7 @@ module.exports = class PlaybackController {
     // update state
     state.playing.infoHash = infoHash
     state.playing.fileIndex = index
-    state.playing.fileName = fileSummary.name
+    state.playing.fileName = displayTitle
     state.playing.type = TorrentPlayer.isVideo(fileSummary)
       ? 'video'
       : TorrentPlayer.isAudio(fileSummary)
@@ -324,7 +327,7 @@ module.exports = class PlaybackController {
       dispatch('addSubtitles', [fileSummary.selectedSubtitle], true)
     }
 
-    state.window.title = fileSummary.name
+    state.window.title = displayTitle
 
     // play in VLC if set as default player (Preferences / Playback / Play in VLC)
     if (this.state.saved.prefs.openExternalPlayer) {

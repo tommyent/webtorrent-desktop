@@ -92,9 +92,13 @@ module.exports = class TorrentList extends React.Component {
   // Show name, download status, % complete
   renderTorrentMetadata (torrentSummary) {
     const name = torrentSummary.name || 'Loading torrent...'
+    const originalTitle = torrentSummary.originalName && torrentSummary.originalName !== name
+      ? torrentSummary.originalName
+      : undefined
     const elements = [(
       <button
         type='button' key='name' className='name ellipsis'
+        title={originalTitle}
         aria-expanded={this.props.state.selectedInfoHash === torrentSummary.infoHash}
         onClick={dispatcher('toggleSelectTorrent', torrentSummary.infoHash)}
       >{name}

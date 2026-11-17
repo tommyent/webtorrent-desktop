@@ -228,6 +228,10 @@ const dispatchHandlers = {
     controllers.torrentList().toggleTorrentFile(infoHash, index),
   confirmDeleteTorrent: (infoHash, deleteData) =>
     controllers.torrentList().confirmDeleteTorrent(infoHash, deleteData),
+  confirmRenameTorrent: (infoHash) =>
+    controllers.torrentList().confirmRenameTorrent(infoHash),
+  renameTorrent: (infoHash, name) =>
+    controllers.torrentList().renameTorrent(infoHash, name),
   deleteTorrent: (infoHash, deleteData) =>
     controllers.torrentList().deleteTorrent(infoHash, deleteData),
   toggleRemovalSelection: (torrentKey, range) =>

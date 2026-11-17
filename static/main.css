@@ -325,6 +325,19 @@ table {
   font-weight: bold;
 }
 
+.rename-torrent-modal .original-name {
+  margin: 10px 0 16px;
+  font-size: 13px;
+  color: #555;
+  word-break: break-word;
+}
+
+.rename-torrent-modal .modal-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .create-torrent {
   padding: 10px 25px;
   overflow: hidden;

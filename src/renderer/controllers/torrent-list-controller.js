@@ -242,6 +242,28 @@ module.exports = class TorrentListController {
     }
   }
 
+  confirmRenameTorrent (infoHash) {
+    this.state.modal = {
+      id: 'rename-torrent-modal',
+      infoHash
+    }
+  }
+
+  renameTorrent (infoHash, name) {
+    const torrentSummary = TorrentSummary.getByKey(this.state, infoHash)
+    if (!torrentSummary) return
+    const trimmed = typeof name === 'string' ? name.trim() : ''
+    const original = torrentSummary.originalName || torrentSummary.name
+    if (trimmed) {
+      torrentSummary.name = trimmed
+      torrentSummary.displayName = trimmed
+    } else {
+      torrentSummary.name = original
+      delete torrentSummary.displayName
+    }
+    dispatch('stateSave')
+  }
+
   // The header's Remove button: the rows checked in the removal column
   // range (a Shift-click) checks every row from the last one clicked to this one
   toggleRemovalSelection (torrentKey, range) {

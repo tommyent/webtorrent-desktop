@@ -12,6 +12,11 @@ function open (info) {
   const main = windows.main
   const template = [
     {
+      label: 'Rename…',
+      click: () => main.dispatch('confirmRenameTorrent', info.infoHash)
+    },
+    { type: 'separator' },
+    {
       label: 'Remove From List',
       click: () => main.dispatch('confirmDeleteTorrent', info.infoHash, false)
     },

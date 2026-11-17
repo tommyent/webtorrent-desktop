@@ -310,7 +310,8 @@ function init () {
   })
   ipcMain.handle('trashTorrentData', (e, infoHash) => {
     assertMainSender(e)
-    return require('./data-path').trashTorrentData(infoHash, require('./shell').moveItemToTrash)
+    const displayName = modules.stateStore?.getSaved().torrents.find(t => t.infoHash === infoHash)?.name
+    return require('./data-path').trashTorrentData(infoHash, require('./shell').moveItemToTrash, displayName)
   })
 
   /**
