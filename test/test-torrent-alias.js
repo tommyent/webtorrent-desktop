@@ -49,7 +49,29 @@ const cases = [
   ['Cosmos Laundromat (Preview)', 'Cosmos Laundromat (Preview)'],
   ['Sintel', 'Sintel'],
   ['Tears of Steel', 'Tears of Steel'],
-  ['Half-Life', 'Half-Life']
+  ['Half-Life', 'Half-Life'],
+  ['Half-Life 2', 'Half-Life 2'],
+
+  // Fansub groups, multi-part audio tags, streaming sources, and hard names
+  ['[SubsPlease] Sousou no Frieren - 12 (1080p) [ABCD1234].mkv', 'Sousou no Frieren - 12'],
+  ['[Erai-raws] Spy x Family - 05 [1080p][Multiple Subtitle].mkv', 'Spy x Family - 05'],
+  ['[Group] Show Title - 01 [ABCD1234].mkv', 'Show Title - 01'],
+  ['[Artist] Ordinary Title', '[Artist] Ordinary Title'],
+  ['Frieren.Beyond.Journeys.End.S01E12.Its.Been.a.While.1080p.CR.WEB-DL.AAC2.0.H.264-VARYG', 'Frieren Beyond Journeys End S1 E12 Its Been a While'],
+  ["VA - Now That's What I Call Music! 115 (2023) Mp3 320kbps [PMEDIA]", "VA - Now That's What I Call Music! 115 (2023)"],
+  ['The.Office.US.S05.COMPLETE.720p.AMZN.WEBRip.x264-GalaxyTV', 'The Office US S5'],
+  ['Planet.Earth.II.2016.2160p.UHD.BluRay.x265.10bit.HDR.DTS-HD.MA.5.1-SWTYBLZ', 'Planet Earth II (2016)'],
+  ['Oppenheimer (2023) [2160p] [4K] [WEB] [5.1] [YTS.MX]', 'Oppenheimer (2023)'],
+  ['Avatar.The.Way.of.Water.2022.IMAX.2160p.DSNP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX', 'Avatar The Way of Water (2022)'],
+  ['Die.Discounter.S03E01.GERMAN.1080p.WEB.H264-WAYNE', 'Die Discounter S3 E1 GERMAN'],
+  ['Disc 1', 'Disc 1'],
+  ['S01', 'S1'],
+  ['Kurzgesagt.-.In.a.Nutshell.-.Collection', 'Kurzgesagt - In a Nutshell - Collection'],
+  ['The.Last.of.Us.S01E03.Long.Long.Time.2160p.HMAX.WEB-DL.DDP5.1.Atmos.DV.H.265-FLUX', 'The Last of Us S1 E3 Long Long Time'],
+  ['Severance.S02.1080p.ATVP.WEB-DL.DDP5.1.H.264-NTb', 'Severance S2'],
+  ['MP3 Player Manual.pdf', 'MP3 Player Manual.pdf'],
+  ['The.CR.Show.S01E01.1080p.WEB.x264-GRP', 'The CR Show S1 E1'],
+  ['Honda CR-V Owners Manual 2019.pdf', 'Honda CR-V Owners Manual 2019.pdf']
 ]
 
 for (const [input, expected] of cases) {

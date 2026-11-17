@@ -12,9 +12,10 @@ const PRESERVED_EXT = new Set([
 ])
 const PLAIN_FILENAME = /^[A-Za-z0-9-]+\.[A-Za-z0-9]{2,5}$/
 
-const UNAMBIGUOUS_TAG = /\b(?:480p|576p|720p|1080[pi]|2160p|4320p|WEB-DL|WEBRip|WEB-Rip|HDRip|BDRip|BRRip|BluRay|Blu-Ray|BDRemux|DVDRip|HDTV|PDTV|SDTV|DVDSCR|x264|x265|H\.?264|H\.?265|HEVC|XviD|DivX|10bit|8bit|HDR10\+?|DoVi|DDP?(?:\s*[257]\.[01])?|EAC3|AC3|DTS-HD(?:\s*MA)?|TrueHD|Atmos|AAC(?:\s*[257]\.[01])?|320kbps)(?:-[A-Za-z0-9]+)?\b/gi
-const CONTEXT_TAG = /\b(?:WEB|UHD|4K|8K|HDR|SDR|DV|REMUX|AVC|AV1|VP9|AMZN|NF|DSNP|ATVP|HMAX|HULU|PCOK|FLAC|MP3|DTS|V0|Opus|LPCM|PROPER|REPACK|INTERNAL)(?:-[A-Za-z0-9]+)?\b/g
-const BRACKET_TAG_CONTENT = /(?:480p|576p|720p|1080[pi]|2160p|4320p|4K|UHD|WEB|BluRay|Blu-Ray|HDRip|BDRip|BRRip|DVDRip|HDTV|x264|x265|H\.?264|H\.?265|HEVC|AV1|XviD|AAC|AC3|DTS|DDP?|Atmos|FLAC|MP3|320kbps|V0|YTS|RARBG|10bit|HDR|[257]\.1|2\.0)/i
+const UNAMBIGUOUS_TAG = /\b(?:480p|576p|720p|1080[pi]|2160p|4320p|WEB-DL|WEBRip|WEB-Rip|HDRip|BDRip|BRRip|BluRay|Blu-Ray|BDRemux|DVDRip|HDTV|PDTV|SDTV|DVDSCR|x264|x265|H\.?264|H\.?265|HEVC|XviD|DivX|10bit|8bit|HDR10\+?|DoVi|(?:DDP?|EAC3|AC3|DTS-HD(?:\s*MA)?|TrueHD|Atmos|AAC)(?:\s*[257]\.[01])?|320kbps)(?:-[A-Za-z0-9]+)?\b/gi
+const CONTEXT_TAG = /\b(?:WEB|UHD|4K|8K|HDR|SDR|DV|REMUX|AVC|AV1|VP9|AMZN|NF|DSNP|ATVP|HMAX|HULU|PCOK|FLAC|DTS(?:\s*[257]\.[01])?|V0|Opus|LPCM|PROPER|REPACK|INTERNAL)(?:-[A-Za-z0-9]+)?\b/g
+const RELEASE_MARKER_TAG = /\b(?:IMAX|COMPLETE)\b/g
+const BRACKET_TAG_CONTENT = /(?:480p|576p|720p|1080[pi]|2160p|4320p|4K|UHD|WEB|BluRay|Blu-Ray|HDRip|BDRip|BRRip|DVDRip|HDTV|x264|x265|H\.?264|H\.?265|HEVC|AV1|XviD|AAC|AC3|DTS|DDP?|Atmos|FLAC|MP3|320kbps|V0|YTS|RARBG|10bit|HDR|[257]\.1|2\.0|Subtitles?)/i
 
 function cleanTorrentName (raw) {
   if (typeof raw !== 'string') return ''
@@ -34,8 +35,27 @@ function cleanTorrentName (raw) {
     }
   }
 
-  // Normalize bracketed years like [2019] -> (2019), then drop release/group brackets.
+  // Collapse H.264 / H.265 dots before marker checks and dot-to-space conversion.
+  name = name.replace(/\b([hx])\.(26[45])\b/gi, '$1$2')
+
+  // Normalize bracketed years like [2019] -> (2019), then drop a leading [Group]
+  // only when a clear release marker (tag, episode, or trailing CRC hash) is present.
   name = name.replace(/\[((?:19|20)\d{2})\]/g, '($1)')
+  if (/^\s*\[[^\]\s]+\]\s*/.test(name)) {
+    const withoutLeading = name.replace(/^\s*\[[^\]\s]+\]\s*/, '')
+    const hasMarker = withoutLeading && (
+      UNAMBIGUOUS_TAG.test(withoutLeading) ||
+      /\b(?:4K|UHD|AVC|AV1|VP9)\b/.test(withoutLeading) ||
+      /\bS0*\d+(?:\s*E0*\d+)?\b/i.test(withoutLeading) ||
+      /\[[0-9A-Fa-f]{6,8}\](?:\s*\[[^\]]+\])*\s*$/.test(withoutLeading)
+    )
+    UNAMBIGUOUS_TAG.lastIndex = 0
+    if (hasMarker) {
+      name = withoutLeading
+      changed = true
+    }
+  }
+
   name = name.replace(/\[([^\]]+)\]/g, (match, inner) => {
     if (BRACKET_TAG_CONTENT.test(inner)) {
       changed = true
@@ -49,14 +69,11 @@ function cleanTorrentName (raw) {
     return ''
   })
 
-  // Collapse H.264 / H.265 dots before dot-to-space conversion.
-  name = name.replace(/\b([hx])\.(26[45])\b/gi, '$1$2')
-
   // Convert underscores (except x86_64 / x86_32) and dots between words to spaces.
   const spaced = name
     .replace(/(?<!\bx86)_/gi, ' ')
     .replace(/(?<=\bS\d+(?:E\d+)?)\.(?=\d)/gi, ' ')
-    .replace(/\.(?=(?:\d{3,4}[pi]|[48]K|(?:19|20)\d{2})\b)/gi, ' ')
+    .replace(/\.(?=(?:\d{3,4}[pi]|[48]K|(?:19|20)\d{2}|(?:10|8)bit)\b)/gi, ' ')
     .replace(/(?<=[A-Za-z0-9-])\.(?=[A-Za-z])|(?<=[A-Za-z])\.(?=[A-Za-z0-9-])/g, ' ')
   if (spaced !== name) {
     changed = true
@@ -85,6 +102,12 @@ function cleanTorrentName (raw) {
     return `S${Number(s)}`
   })
 
+  // Strip CR source tag only when sitting right before WEB/WEB-DL/WEBRip.
+  name = name.replace(/\bCR(?=\s+WEB(?:-?(?:DL|Rip))?\b)/g, () => {
+    changed = true
+    return ' '
+  })
+
   // Strip unambiguous release tags first; strip context-sensitive tags when
   // uppercase or accompanied by other release markers.
   let hasTag = false
@@ -96,6 +119,15 @@ function cleanTorrentName (raw) {
   if (hasTag || hasEpisode || changed) {
     name = name.replace(CONTEXT_TAG, () => {
       hasTag = true
+      changed = true
+      return ' '
+    })
+  }
+  if (hasTag || hasEpisode) {
+    name = name.replace(RELEASE_MARKER_TAG, () => {
+      changed = true
+      return ' '
+    }).replace(/\bMP3\b/gi, () => {
       changed = true
       return ' '
     })
