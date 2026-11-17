@@ -48,7 +48,7 @@ function spawn (playerPath, url, title, saved) {
       const args = [
         '--play-and-exit',
         '--quiet',
-        `--meta-title=${JSON.stringify(title)}`,
+        ...(title ? [`--meta-title=${title}`] : []),
         url
       ]
       spawnExternal(vlcPath, args, token, !!filePath)

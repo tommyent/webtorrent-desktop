@@ -905,6 +905,10 @@ function renderPlayerControls (state) {
 
 function renderPreview (state) {
   const { previewXCoord = null } = state.playing
+  if (state.playing.type !== 'video' || state.playing.location !== 'local' ||
+      previewXCoord == null || !state.server) {
+    return null
+  }
 
   // Calculate time from x-coord as fraction of track width
   const windowWidth = document.querySelector('body').clientWidth
@@ -915,11 +919,13 @@ function renderPreview (state) {
   let width = 0
 
   const previewEl = document.querySelector('video#preview')
-  if (previewEl !== null && previewXCoord !== null) {
+  if (previewEl !== null && previewEl.videoWidth && previewEl.videoHeight) {
     previewEl.currentTime = time
 
     // Auto adjust width to maintain video aspect ratio
     width = Math.floor((previewEl.videoWidth / previewEl.videoHeight) * height)
+  } else if (state.playing.aspectRatio) {
+    width = Math.floor(state.playing.aspectRatio * height)
   }
 
   // Center preview window on mouse cursor,
@@ -931,15 +937,19 @@ function renderPreview (state) {
       key='preview' style={{
         position: 'absolute',
         bottom: 50,
-        left: xPos,
-        display: previewXCoord == null && 'none' // Hide preview when XCoord unset
+        left: xPos
       }}
     >
       <div style={{ width, height, backgroundColor: 'black' }}>
         <video
+          ref={unloadPreviewOnUnmount}
           src={Playlist.getCurrentLocalURL(state)}
           id='preview'
           muted
+          onLoadedMetadata={e => {
+            e.target.currentTime = time
+            dispatch('update')
+          }}
           style={{ border: '1px solid lightgrey', borderRadius: 2 }}
         />
       </div>
@@ -952,6 +962,15 @@ function renderPreview (state) {
       </p>
     </div>
   )
+}
+
+function unloadPreviewOnUnmount (node) {
+  if (!node) return
+  return () => {
+    node.pause()
+    node.removeAttribute('src')
+    node.load()
+  }
 }
 
 // Renders the loading bar. Shows which parts of the torrent are loaded, which

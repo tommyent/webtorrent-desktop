@@ -84,4 +84,53 @@ playback.closePlayer()
 assert.equal(stopped.at(-1), true, 'Back after external launch keeps its stream')
 assert.deepEqual(quit, [], 'Back leaves the external player running')
 
-console.log('Playback server regressions passed: ready after Back, late reply, external stream after Back')
+// Windows taskbar toolbar buttons map (hasNext, hasPrevious) in the same order as menu.
+const thumbarButtons = []
+const windowsFile = require.resolve('../src/main/windows')
+require.cache[windowsFile] = {
+  id: windowsFile,
+  filename: windowsFile,
+  loaded: true,
+  exports: { main: { win: { setThumbarButtons: buttons => thumbarButtons.push(buttons.map(b => b.flags)) } } }
+}
+const thumbar = require('../src/main/thumbar')
+thumbar.enable()
+thumbar.onPlayerUpdate(true, false)
+assert.deepEqual(thumbarButtons.at(-1), [['disabled'], undefined, ['enabled']])
+thumbar.onPlayerUpdate(false, true)
+assert.deepEqual(thumbarButtons.at(-1), [['enabled'], undefined, ['disabled']])
+
+// Hover-preview <video> only mounts for hovered local video (never audio or casting).
+const Player = require('../build/renderer/pages/player-page')
+const { renderToStaticMarkup } = require('react-dom/server')
+const previewState = (type, location, previewXCoord) => {
+  const playing = Object.assign(State.getDefaultPlayState(), {
+    type, location, previewXCoord, infoHash: a.infoHash, fileIndex: 0, fileName: 'a.mp4'
+  })
+  const summary = { infoHash: a.infoHash, name: 'A', files: [{ name: 'a.mp4', length: 100 }] }
+  return {
+    playing,
+    saved: { torrents: [summary] },
+    window: { isFullScreen: false },
+    devices: { items: [] },
+    server: { localURL: 'http://127.0.0.1:1/webtorrent/' + a.infoHash, filePaths: ['a.mp4?token=t'] },
+    getPlayingTorrentSummary: () => summary,
+    getPlayingFileSummary: () => summary.files[0]
+  }
+}
+global.window.Image = function () {}
+global.document = { querySelector: selector => selector === 'body' ? { clientWidth: 800 } : null }
+try {
+  for (const [type, location] of [['audio', 'local'], ['video', 'chromecast'], ['video', 'local']]) {
+    const markup = renderToStaticMarkup(new Player({ state: previewState(type, location, null) }).render())
+    assert.equal(markup.includes('id="preview"'), false, `no preview video for ${type}/${location}`)
+  }
+  const hovered = renderToStaticMarkup(new Player({ state: previewState('video', 'local', 120) }).render())
+  assert.ok(hovered.includes('id="preview"'), 'hovered local video mounts preview')
+  assert.ok(hovered.includes('http://127.0.0.1:1/webtorrent/' + a.infoHash + '/a.mp4?token=t'))
+} finally {
+  delete global.document
+  delete global.window.Image
+}
+
+console.log('Playback server regressions passed: ready after Back, late reply, external stream after Back, thumbar flags, hover preview')

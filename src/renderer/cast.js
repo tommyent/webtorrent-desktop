@@ -209,7 +209,17 @@ function chromecastPlayer () {
           'Transfer-Encoding': 'chunked'
         })
         res.end(Buffer.from(selectedSubtitle.buffer.slice(21), 'base64'))
-      }).listen(0, state.server.networkAddress, () => {
+      })
+      let settled = false
+      ret.subServer.on('error', err => {
+        console.log('cast: subtitles server error: %o', err)
+        if (settled) return
+        settled = true
+        ret.subServer = null
+        callback()
+      })
+      ret.subServer.listen(0, state.server.networkAddress, () => {
+        settled = true
         const port = ret.subServer.address().port
         const subtitlesUrl = 'http://' + state.server.networkAddress + ':' + port + '/' + token
         callback(subtitlesUrl)

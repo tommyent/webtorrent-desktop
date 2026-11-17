@@ -117,6 +117,34 @@ async function main () {
   }
   assert.deepEqual(tlsPorts, [8009, 32007], 'diagnostics connect to each advertised port')
 
+  // Subtitle server listen error falls back to casting without subtitles instead of crashing
+  const http = require('node:http')
+  const realCreateServer = http.createServer
+  http.createServer = () => {
+    const server = new EventEmitter()
+    server.listen = () => setImmediate(() => server.emit('error', new Error('EADDRNOTAVAIL')))
+    return server
+  }
+  try {
+    let playCalls = 0
+    let playedOpts = null
+    const subTv = device(chromecast, {
+      name: 'Sub TV',
+      host: 'sub.local',
+      play (url, opts, cb) { playCalls++; playedOpts = opts; cb() }
+    })
+    local()
+    state.playing.subtitles = { tracks: [{ buffer: 'data:text/vtt;base64,V0VCVlRUCg==' }], selectedIndex: 0 }
+    state.server = { networkAddress: '127.0.0.1', networkURL: 'http://127.0.0.1:9', filePaths: ['a.mp4'] }
+    state.devices.castMenu = { location: 'chromecast', devices: [subTv] }
+    Cast.selectDevice(0)
+    await until('subtitle fallback play', () => playCalls === 1)
+    assert.deepEqual(playedOpts.subtitles, [])
+    assert.equal(state.playing.location, 'chromecast')
+  } finally {
+    http.createServer = realCreateServer
+  }
+
   console.log = log
   console.log('Cast device regressions passed: this computer hidden from AirPlay, AirPlay 403 explained, Chromecast errors name the device and diagnose once')
   process.exit(0)

@@ -205,9 +205,23 @@ async function main () {
     for (let i = 0; i < 100 && added.length < 3; i++) await new Promise(resolve => setTimeout(resolve, 100))
     await new Promise(resolve => setTimeout(resolve, 500))
     const tracked = Object.values(watcher.watcher.getWatched()).flat()
-    watcher.stop()
     assert.deepEqual(added.sort(), [path.join('Season.2', 'c.torrent'), 'a.torrent', path.join('sub', 'B.TORRENT')])
     assert.ok(!tracked.includes('notes.txt'), 'other files in the folder are not tracked')
+
+    // Switching the watch folder stops watching the old folder and picks up torrents in the new one
+    const folder2 = path.join(base, 'other-watch')
+    fs.mkdirSync(folder2)
+    added.length = 0
+    watcher.state.saved.prefs.torrentsFolderPath = folder2
+    watcher.start()
+    await new Promise(resolve => watcher.watcher.on('ready', resolve))
+    fs.writeFileSync(path.join(folder, 'ignored.torrent'), 'x')
+    fs.writeFileSync(path.join(folder2, 'switched.torrent'), 'x')
+    const switched = path.relative(folder, path.join(folder2, 'switched.torrent'))
+    for (let i = 0; i < 100 && !added.includes(switched); i++) await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 500))
+    watcher.stop()
+    assert.deepEqual(added, [switched], 'only the newly selected watch folder is watched')
   } finally {
     fs.rmSync(base, { recursive: true, force: true })
   }

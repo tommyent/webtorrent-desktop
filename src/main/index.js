@@ -65,6 +65,7 @@ function init () {
   }
 
   let isReady = false // app ready, windows can be created
+  let folderWatcher = null
   app.ipcReady = false // main window has finished loading and IPC is ready
   app.isQuitting = false
 
@@ -92,9 +93,13 @@ function init () {
           delete torrent.posterURL
         }
         const limitsChanged = ['downloadLimitMB', 'uploadLimitMB'].some(key => saved.prefs[key] !== state.saved.prefs[key])
+        const watchFolderChanged = saved.prefs.torrentsFolderPath !== state.saved.prefs.torrentsFolderPath
         state.saved = saved
         if (limitsChanged && app.ipcReadyWebTorrent) {
           windows.webtorrent.send('wt-set-bandwidth', require('../renderer/lib/bandwidth').options(saved.prefs))
+        }
+        if (watchFolderChanged && folderWatcher && folderWatcher.isEnabled()) {
+          folderWatcher.start()
         }
         const nextSave = savePromise.then(() => State.save(saved))
         savePromise = nextSave.catch(() => {})
@@ -112,7 +117,7 @@ function init () {
 
     // To keep app startup fast, some code is delayed.
     setTimeout(() => {
-      delayedInit(state)
+      folderWatcher = delayedInit(state)
     }, config.DELAYED_INIT)
 
     // Report uncaught exceptions
@@ -191,6 +196,8 @@ function delayedInit (state) {
     const tray = require('./tray')
     tray.init()
   }
+
+  return folderWatcher
 }
 
 function onOpen (e, torrentId) {

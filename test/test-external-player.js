@@ -19,6 +19,8 @@ stub('windows', {
   main: { dispatch: (...args) => dispatched.push(args) },
   webtorrent: { send: (...args) => released.push(args) }
 })
+const vlcFile = require.resolve('vlc-command')
+require.cache[vlcFile] = { id: vlcFile, filename: vlcFile, loaded: true, exports: cb => cb(null, '/usr/bin/vlc') }
 const spawned = []
 cp.spawn = (command, args) => {
   const proc = new EventEmitter()
@@ -45,6 +47,12 @@ externalPlayer.spawn('/usr/local/bin/mpv', url, 'A')
 assert.deepEqual(spawned.at(-1), { command: '/usr/local/bin/mpv', args: [url], proc: spawned.at(-1).proc })
 spawned.at(-1).proc.emit('close', 1)
 assert.deepEqual(dispatched.at(-1), ['externalPlayerExited', 'first', 1])
+
+// Auto-detected VLC gets raw --meta-title without shell-style quotes
+externalPlayer.spawn(null, url, 'My "Film"')
+assert.deepEqual(spawned.at(-1).command, '/usr/bin/vlc')
+assert.deepEqual(spawned.at(-1).args, ['--play-and-exit', '--quiet', '--meta-title=My "Film"', url])
+spawned.at(-1).proc.emit('close', 0)
 
 const secondURL = 'http://127.0.0.1:9/webtorrent/abc/b.mp4?token=second'
 externalPlayer.spawn('/Applications/IINA.app', url, 'A')

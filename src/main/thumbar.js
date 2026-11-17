@@ -75,10 +75,10 @@ function onPlayerPlay () {
   update()
 }
 
-function onPlayerUpdate (state) {
+function onPlayerUpdate (hasNext, hasPrevious) {
   if (!isEnabled()) return
-  buttons[PREV].flags = [state.hasPrevious ? 'enabled' : 'disabled']
-  buttons[NEXT].flags = [state.hasNext ? 'enabled' : 'disabled']
+  buttons[PREV].flags = [hasPrevious ? 'enabled' : 'disabled']
+  buttons[NEXT].flags = [hasNext ? 'enabled' : 'disabled']
   update()
 }
 

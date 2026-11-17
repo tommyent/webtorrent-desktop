@@ -142,6 +142,7 @@ module.exports = class TorrentController {
   torrentDone (torrentKey, torrentInfo) {
     // Update the torrent summary
     const torrentSummary = this.getTorrentSummary(torrentKey)
+    if (!torrentSummary) return // removed before completion arrived
     torrentSummary.status = 'seeding'
     // Only when every file is complete: a torrent with unticked files is done
     // for the user but keeps its resume map and path check

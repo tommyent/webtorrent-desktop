@@ -10,7 +10,11 @@ module.exports = class StreamServer {
     const handle = this.server.wrapRequest.bind(this.server)
     this.server.wrapRequest = (req, res) => {
       const host = '127.0.0.1:' + this.server.address().port
-      const url = new URL(req.url, 'http://' + host)
+      const url = parseRequestURL(req.url, 'http://' + host)
+      if (!url) {
+        res.writeHead(400).end()
+        return
+      }
       const grant = this.grants.get(url.searchParams.get('token'))
       if (req.headers.host !== host || (req.headers.origin && req.headers.origin !== 'null') ||
           !grant || !grant.paths.has(url.pathname) || !['GET', 'HEAD'].includes(req.method)) {
@@ -51,7 +55,8 @@ module.exports = class StreamServer {
   async cast (torrent, fileIndex, address) {
     const grant = await this.grant(torrent, fileIndex)
     const proxy = http.createServer((req, res) => {
-      const url = new URL(req.url, 'http://localhost')
+      const url = parseRequestURL(req.url, 'http://localhost')
+      if (!url) return res.writeHead(400).end()
       if (req.headers.host !== address + ':' + proxy.address().port ||
           url.searchParams.get('token') !== grant.token ||
           !this.grants.get(grant.token)?.paths.has(url.pathname) ||
@@ -76,5 +81,13 @@ module.exports = class StreamServer {
       networkURL: 'http://' + address + ':' + proxy.address().port + '/webtorrent/' + torrent.infoHash,
       release: () => { grant.release(); proxy.close(); proxy.closeAllConnections() }
     }
+  }
+}
+
+function parseRequestURL (reqUrl, base) {
+  try {
+    return new URL(reqUrl, base)
+  } catch {
+    return null
   }
 }
