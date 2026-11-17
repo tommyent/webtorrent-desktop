@@ -15,11 +15,11 @@ module.exports = class CreateTorrentErrorPage extends React.Component {
             Hidden files, starting with a . character, are not included.
           </p>
         </p>
-        <p className='float-right'>
-          <button className='button-flat light' onClick={dispatcher('cancel')}>
+        <div className='create-torrent-actions'>
+          <button type='button' className='btn flat control' onClick={dispatcher('cancel')}>
             Cancel
           </button>
-        </p>
+        </div>
       </div>
     )
   }

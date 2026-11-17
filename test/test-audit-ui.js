@@ -308,7 +308,7 @@ async function main () {
     await listSort.focus()
     assert.equal(await opacity(), '1', 'checked removal box stays visible outside its row')
     await page.getByRole('button', { name: 'Remove 1 selected torrents', exact: true }).press('Enter')
-    await page.getByRole('button', { name: 'CANCEL', exact: true }).press('Enter')
+    await page.getByRole('button', { name: 'Cancel', exact: true }).press('Enter')
     assert.equal(await removal.getAttribute('aria-checked'), 'true', 'cancel preserves selection')
     await removal.press('Space')
     await listSort.focus()

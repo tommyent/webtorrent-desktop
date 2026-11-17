@@ -94,26 +94,20 @@ class CreateTorrentPage extends React.Component {
           <div>{this.state.pathPrefix}</div>
         </div>
         <ShowMore
-          style={{
-            marginBottom: 10
-          }}
-          hideLabel='Hide advanced settings...'
-          showLabel='Show advanced settings...'
+          hideLabel='Hide advanced settings…'
+          showLabel='Show advanced settings…'
         >
           {this.renderAdvanced()}
         </ShowMore>
-        <div className='float-right'>
+        <div className='create-torrent-actions'>
           <FlatButton
             className='control cancel'
             label='Cancel'
-            style={{
-              marginRight: 10
-            }}
             onClick={dispatcher('cancel')}
           />
           <RaisedButton
             className='control create-torrent-button'
-            label='Create Torrent'
+            label='Create torrent'
             primary
             onClick={this.handleSubmit}
           />
@@ -138,17 +132,12 @@ class CreateTorrentPage extends React.Component {
       fileElems.push(<div key='more'>+ {files.length - maxFileElems} more</div>)
     }
 
-    // Align the text fields
-    const textFieldStyle = { width: '' }
-    const textareaStyle = { margin: 0 }
-
     return (
       <div key='advanced' className='create-torrent-advanced'>
         <div key='private' className='torrent-attribute'>
           <label>Private:</label>
           <Checkbox
             className='torrent-is-private control'
-            style={{ display: '' }}
             checked={this.state.isPrivate}
             onCheck={this.handleSetIsPrivate}
           />
@@ -157,8 +146,6 @@ class CreateTorrentPage extends React.Component {
           <label>Trackers:</label>
           <TextField
             className='torrent-trackers control'
-            style={textFieldStyle}
-            textareaStyle={textareaStyle}
             multiLine
             rows={2}
             rowsMax={10}
@@ -170,9 +157,7 @@ class CreateTorrentPage extends React.Component {
           <label>Comment:</label>
           <TextField
             className='torrent-comment control'
-            style={textFieldStyle}
-            textareaStyle={textareaStyle}
-            hintText='Optionally describe your torrent...'
+            hintText='Optionally describe your torrent…'
             multiLine
             rows={2}
             rowsMax={10}

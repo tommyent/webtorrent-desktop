@@ -77,10 +77,10 @@ class App extends React.Component {
       <div key='errors' className='error-popover'>
         <div className='title'>
           <span>Error</span>
-          <button type='button' onClick={() => dispatch('copyErrors')}>
+          <button type='button' className='btn raised' onClick={() => dispatch('copyErrors')}>
             {state.errorsCopied === state.errors.map(error => error.message).join('\n\n') ? 'Copied' : 'Copy details'}
           </button>
-          <button type='button' onClick={() => dispatch('dismissErrors')}>Dismiss</button>
+          <button type='button' className='btn raised' onClick={() => dispatch('dismissErrors')}>Dismiss</button>
         </div>
         <div className='error-messages' role='alert'>{errorElems}</div>
       </div>

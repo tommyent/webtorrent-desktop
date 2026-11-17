@@ -91,7 +91,7 @@ module.exports = class TorrentList extends React.Component {
 
   // Show name, download status, % complete
   renderTorrentMetadata (torrentSummary) {
-    const name = torrentSummary.name || 'Loading torrent...'
+    const name = torrentSummary.name || 'Loading torrent…'
     const originalTitle = torrentSummary.originalName && torrentSummary.originalName !== name
       ? torrentSummary.originalName
       : undefined
@@ -304,10 +304,10 @@ module.exports = class TorrentList extends React.Component {
         message = torrentSummary.error.message || torrentSummary.error
       } else if (torrentSummary.status === 'paused') {
         // No file info, no infohash, and we're not trying to download from the DHT
-        message = 'Failed to load torrent info. Click the download button to try again...'
+        message = 'Failed to load torrent info. Click the download button to try again…'
       } else {
         // No file info, no infohash, trying to load from the DHT
-        message = 'Downloading torrent info...'
+        message = 'Downloading torrent info…'
       }
       filesElement = (
         <div key='files' className='files warning'>

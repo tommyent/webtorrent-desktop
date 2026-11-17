@@ -21,7 +21,7 @@ module.exports = class OpenTorrentAddressModal extends React.Component {
           />
         </div>
         <ModalOKCancel
-          cancelText='CANCEL'
+          cancelText='Cancel'
           onCancel={dispatcher('exitModal')}
           okText='OK'
           onOK={handleOK.bind(this)}

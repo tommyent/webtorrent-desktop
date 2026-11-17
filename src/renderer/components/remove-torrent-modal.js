@@ -14,7 +14,7 @@ module.exports = class RemoveTorrentModal extends React.Component {
     const message = deleteData
       ? `Are you sure you want to remove ${what} from the list and delete the data ${count === 1 ? 'file' : 'files'}?`
       : `Are you sure you want to remove ${what} from the list?`
-    const buttonText = deleteData ? 'REMOVE DATA' : 'REMOVE'
+    const buttonText = deleteData ? 'Remove data' : 'Remove'
 
     return (
       <div>
@@ -32,9 +32,10 @@ module.exports = class RemoveTorrentModal extends React.Component {
           </p>
         )}
         <ModalOKCancel
-          cancelText='CANCEL'
+          cancelText='Cancel'
           onCancel={dispatcher('exitModal')}
           okText={buttonText}
+          danger
           onOK={handleRemove}
         />
       </div>

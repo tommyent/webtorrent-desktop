@@ -470,7 +470,7 @@ function renderCastScreen (state) {
     ? playingTorrent.name
     : playingFile && playingFile.name) || ''
   let castStatus
-  if (isCast && isStarting) castStatus = 'Connecting to ' + castName + '...'
+  if (isCast && isStarting) castStatus = 'Connecting to ' + castName + '…'
   else if (isCast && !isStarting) castStatus = 'Connected to ' + castName
   else castStatus = ''
 

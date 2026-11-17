@@ -44,7 +44,7 @@ test('torrent-list: start, stop, and delete torrents', function (t) {
     // Check the first torrent for removal, then press Remove in the header
     .then(() => app.client.click('#torrent-bbb .remove-select'))
     .then(() => app.client.click('.header .remove-selected'))
-    .then(() => app.client.waitUntilTextExists('.modal', 'REMOVE'))
+    .then(() => app.client.waitUntilTextExists('.modal', 'Remove'))
     .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-delete-prompt'))
     // Click cancel on the resulting confirmation dialog. Should be same as before.
     .then(() => app.client.click('.control.cancel'))
@@ -52,7 +52,7 @@ test('torrent-list: start, stop, and delete torrents', function (t) {
       app, t, 'torrent-list-2', '#torrent-bbb .name'))
     // It stays checked after Cancel: press Remove again
     .then(() => app.client.click('.header .remove-selected'))
-    .then(() => app.client.waitUntilTextExists('.modal', 'REMOVE'))
+    .then(() => app.client.waitUntilTextExists('.modal', 'Remove'))
     .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-delete-prompt'))
     // This time, click OK to confirm.
     .then(() => app.client.click('.control.ok'))
@@ -100,7 +100,7 @@ test('torrent-list: expand torrent, unselect file', function (t) {
     // Spectron doesn't have proper support for menu clicks yet...
     .then(() => app.webContents.executeJavaScript(
       'dispatch("confirmDeleteTorrent", "6a02592d2bbc069628cd5ed8a54f88ee06ac0ba5", true)'))
-    .then(() => app.client.waitUntilTextExists('.modal', 'REMOVE'))
+    .then(() => app.client.waitUntilTextExists('.modal', 'Remove'))
     .then(() => setup.screenshotCreateOrCompare(app, t, 'torrent-list-cosmos-delete-data'))
     // Click confirm
     .then(() => app.client.click('.control.ok'))

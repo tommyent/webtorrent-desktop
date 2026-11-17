@@ -20,7 +20,7 @@ test('add-torrent', function (t) {
     .then(() => app.client.moveToObject('.torrent'))
     .then(() => app.client.click('.torrent .remove-select'))
     .then(() => app.client.click('.header .remove-selected'))
-    .then(() => app.client.waitUntilTextExists('.modal', 'REMOVE'))
+    .then(() => app.client.waitUntilTextExists('.modal', 'Remove'))
     .then(() => app.client.click('.control.ok'))
     // Add the same existing torrent, this time with the file present. Should be at 100%
     .then(() => setup.copy(

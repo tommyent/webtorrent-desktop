@@ -80,7 +80,7 @@ class PreferencesPage extends React.Component {
         <Checkbox
           className='control'
           checked={this.props.state.saved.prefs.highestPlaybackPriority}
-          label='Highest Playback Priority'
+          label='Highest playback priority'
           onCheck={this.handleHighestPlaybackPriorityChange}
         />
         <p>Pauses other active torrents while playing. Bandwidth limits still apply.</p>
@@ -245,17 +245,12 @@ class PreferencesPage extends React.Component {
   }
 
   setGlobalTrackers () {
-    // Align the text fields
-    const textFieldStyle = { width: '100%' }
-    const textareaStyle = { margin: 0 }
-
     return (
       <Preference>
         <TextField
           aria-label='Additional trackers'
           className='torrent-trackers control'
-          style={textFieldStyle}
-          textareaStyle={textareaStyle}
+          fullWidth
           multiLine
           rows={2}
           rowsMax={10}
@@ -279,13 +274,8 @@ class PreferencesPage extends React.Component {
   }
 
   render () {
-    const style = {
-      color: '#bdbdbd',
-      marginLeft: 25,
-      marginRight: 25
-    }
     return (
-      <div style={style}>
+      <div className='preferences'>
         <PreferencesSection title='Folders'>
           {this.downloadPathSelector()}
           {this.autoAddTorrentsCheckbox()}
@@ -341,12 +331,8 @@ class PreferencesSection extends React.Component {
   }
 
   render () {
-    const style = {
-      marginBottom: 25,
-      marginTop: 25
-    }
     return (
-      <div style={style}>
+      <div className='preferences-section'>
         <Heading level={2}>{this.props.title}</Heading>
         {this.props.children}
       </div>
@@ -356,8 +342,7 @@ class PreferencesSection extends React.Component {
 
 class Preference extends React.Component {
   render () {
-    const style = { marginBottom: 10 }
-    return (<div style={style}>{this.props.children}</div>)
+    return (<div className='preference'>{this.props.children}</div>)
   }
 }
 

@@ -51,14 +51,13 @@ module.exports = class RenameTorrentModal extends React.Component {
         <div className='modal-actions'>
           <FlatButton
             className='control reset-name'
-            style={{ color: 'black' }}
             label='Use original'
             onClick={this.handleReset}
           />
           <ModalOKCancel
-            cancelText='CANCEL'
+            cancelText='Cancel'
             onCancel={dispatcher('exitModal')}
-            okText='SAVE'
+            okText='Save'
             onOK={this.handleOK}
           />
         </div>

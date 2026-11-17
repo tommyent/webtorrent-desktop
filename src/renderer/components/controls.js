@@ -1,6 +1,6 @@
 // Native replacements for the handful of material-ui 0.x components this app
 // used. Prop contracts match the old components so call sites only swap the
-// require: buttons take label/onClick/primary, Checkbox calls
+// require: buttons take label/onClick/primary/danger, Checkbox calls
 // onCheck(event, isChecked), TextField calls onChange(event, newValue) and
 // exposes the raw DOM node as ref.input. Styling lives in static/main.css.
 const React = require('react')
@@ -26,12 +26,12 @@ class FlatButton extends React.Component {
 
 class RaisedButton extends React.Component {
   render () {
-    const { className, style, label, onClick, autoFocus, disabled, primary } = this.props
+    const { className, style, label, onClick, autoFocus, disabled, primary, danger } = this.props
     return (
       <button
         aria-label={this.props['aria-label']}
         type='button'
-        className={'btn raised ' + (primary ? 'primary ' : '') + (className || '')}
+        className={'btn raised ' + (primary ? 'primary ' : '') + (danger ? 'danger ' : '') + (className || '')}
         style={style}
         onClick={onClick}
         autoFocus={autoFocus}

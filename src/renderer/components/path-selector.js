@@ -35,42 +35,18 @@ class PathSelector extends React.Component {
 
   render () {
     const id = this.props.title.replace(' ', '-').toLowerCase()
-    const wrapperStyle = {
-      alignItems: 'center',
-      display: 'flex',
-      width: '100%'
-    }
-    const labelStyle = {
-      flex: '0 auto',
-      marginRight: 10,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap'
-    }
-    const textareaStyle = {
-      color: '#fafafa'
-    }
-    const textFieldStyle = {
-      flex: '1'
-    }
     const text = this.props.value || ''
-    const buttonStyle = {
-      marginLeft: 10
-    }
+    const className = 'path-selector' + (this.props.className ? ' ' + this.props.className : '')
 
     return (
-      <div className={this.props.className} style={wrapperStyle}>
-        <label htmlFor={id} className='label' style={labelStyle}>
+      <div className={className}>
+        <label htmlFor={id} className='label'>
           {this.props.title}:
         </label>
-        <TextField
-          className='control' disabled id={id} value={text}
-          inputStyle={textareaStyle} style={textFieldStyle}
-        />
+        <TextField className='control' disabled id={id} value={text} />
         <RaisedButton
           aria-label={'Change ' + this.props.title}
           className='control' label='Change' onClick={this.handleClick}
-          style={buttonStyle}
         />
       </div>
     )

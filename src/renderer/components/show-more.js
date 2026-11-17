@@ -14,8 +14,8 @@ class ShowMore extends React.Component {
 
   static get defaultProps () {
     return {
-      hideLabel: 'Hide more...',
-      showLabel: 'Show more...'
+      hideLabel: 'Hide more…',
+      showLabel: 'Show more…'
     }
   }
 

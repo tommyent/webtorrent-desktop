@@ -4,20 +4,19 @@ const { RaisedButton } = require('./controls')
 
 module.exports = class ModalOKCancel extends React.Component {
   render () {
-    const cancelStyle = { marginRight: 10, color: 'black' }
-    const { cancelText, onCancel, okText, onOK } = this.props
+    const { cancelText, onCancel, okText, onOK, danger } = this.props
     return (
-      <div className='float-right'>
+      <div className='modal-ok-cancel'>
         <FlatButton
           autoFocus
           className='control cancel'
-          style={cancelStyle}
           label={cancelText}
           onClick={onCancel}
         />
         <RaisedButton
           className='control ok'
           primary
+          danger={danger}
           label={okText}
           onClick={onOK}
         />

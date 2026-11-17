@@ -9,15 +9,16 @@ module.exports = class DeleteAllTorrentsModal extends React.Component {
     const message = deleteData
       ? 'Are you sure you want to remove all the torrents from the list and delete the data files?'
       : 'Are you sure you want to remove all the torrents from the list?'
-    const buttonText = deleteData ? 'REMOVE DATA' : 'REMOVE'
+    const buttonText = deleteData ? 'Remove data' : 'Remove'
 
     return (
       <div>
         <p><strong>{message}</strong></p>
         <ModalOKCancel
-          cancelText='CANCEL'
+          cancelText='Cancel'
           onCancel={dispatcher('exitModal')}
           okText={buttonText}
+          danger
           onOK={handleRemove}
         />
       </div>
