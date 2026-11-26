@@ -126,8 +126,8 @@ function save (state) {
   persist(state, api.state.save)
 }
 
-function saveImmediate (state) {
-  persist(state, api.state.saveImmediate)
+function saveImmediate (state, request) {
+  persist(state, copy => api.state.saveImmediate(copy, request))
 }
 
 function persist (state, write) {

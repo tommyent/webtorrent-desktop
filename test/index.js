@@ -3,6 +3,9 @@ const setup = require('./setup')
 const pkg = require('../package.json')
 const webtorrentPkg = require('webtorrent/package.json')
 
+// On a clean install Electron downloads its binary on first use, outside the app startup timer.
+require('electron')
+
 test.onFinish(setup.deleteTestDataDir)
 
 test('app runs', function (t) {

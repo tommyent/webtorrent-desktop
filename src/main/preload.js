@@ -101,7 +101,7 @@ contextBridge.exposeInMainWorld('webtorrent', {
   state: {
     load: () => ipcRenderer.invoke('stateLoad'),
     save: saved => ipcRenderer.invoke('stateSave', saved),
-    saveImmediate: saved => ipcRenderer.invoke('stateSaveImmediate', saved)
+    saveImmediate: (saved, request) => ipcRenderer.invoke('stateSaveImmediate', saved, request)
   },
   subtitles: {
     load: filePaths => ipcRenderer.invoke('loadSubtitles', filePaths)

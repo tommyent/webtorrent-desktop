@@ -111,6 +111,7 @@ function onState (err, _state) {
   // Do this at least once a second to give every file in every torrentSummary
   // a progress bar and to keep the cursor in sync when playing a video
   setInterval(update, 1000)
+  setInterval(() => controllers.torrent().checkpointResumeMaps(), 60 * 1000)
 
   // Listen for messages from the main process
   setupIpc()
@@ -345,7 +346,7 @@ const dispatchHandlers = {
   updateAvailable: (version) => { state.updateAvailable = version },
   openReleasePage: () => api.shell.openReleasePage().catch(onError),
   stateSave: () => State.save(state),
-  stateSaveImmediate: () => State.saveImmediate(state),
+  stateSaveImmediate: request => State.saveImmediate(state, request),
   update: () => {} // No-op, just trigger an update
 }
 

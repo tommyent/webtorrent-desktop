@@ -49,6 +49,24 @@ function assertMainSender (event) {
 function init () {
   app.on('webtorrentStopped', () => { messageQueueMainToWebTorrent.length = 0 })
   ipcMain.on('engineStartupFailed', (e, message) => windows.webtorrent.fail(message))
+  // Preference saves use the same IPC. Only this quit attempt's snapshot can finish it.
+  let quitRequest = 0
+  let quitTimeout
+  let quitSaved = false
+  app.on('before-quit', event => {
+    if (quitSaved) return
+    event.preventDefault()
+    if (app.isQuitting) return
+    app.isQuitting = true
+    quitTimeout = setTimeout(() => {
+      app.isQuitting = false
+      app.emit('quitCancelled')
+      windows.main.show()
+      windows.main.send('error', 'Unable to save before quitting. Please try again.')
+    }, 4000)
+    windows.main.dispatch('stateSaveImmediate', ++quitRequest)
+  })
+
   let restartScheduled = false
   const relaunch = () => app.relaunch()
   app.on('quitCancelled', () => {
@@ -155,14 +173,18 @@ function init () {
     }
     await modules.stateStore.save(saved)
   })
-  ipcMain.handle('stateSaveImmediate', async (e, saved) => {
+  ipcMain.handle('stateSaveImmediate', async (e, saved, request) => {
     assertMainSender(e)
     if (!modules.stateStore) throw new Error('State store is not ready')
     if (!saved || typeof saved !== 'object' || Array.isArray(saved)) {
       throw new TypeError('Invalid saved state')
     }
     await modules.stateStore.save(saved)
-    if (app.isQuitting) app.emit('stateSaved')
+    if (app.isQuitting && request === quitRequest && !quitSaved) {
+      clearTimeout(quitTimeout)
+      quitSaved = true
+      app.quit()
+    }
   })
   ipcMain.handle('checkDownloadPath', (e, filePath) => {
     assertMainSender(e)

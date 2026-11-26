@@ -125,12 +125,26 @@ async function main () {
   assert.ok(header([1, 2, 3, 4]).includes('>Select none</button>'))
 
   // A folder check answers 'stalled' when the drive doesn't, and never stacks checks
-  const { probeFolder } = require('../src/main/renderer-files')
+  const { probeFolder, checkDownloadPath, pathExists } = require('../src/main/renderer-files')
   let stats = 0
   const hang = () => { stats++; return new Promise(() => {}) }
   assert.equal(await probeFolder('/share', hang, 20), 'stalled')
   assert.equal(await probeFolder('/share', hang, 20), 'stalled')
   assert.equal(stats, 1, 'no second check while the first still hangs')
+  let finishStat
+  let pendingCalls = 0
+  const delayedStat = () => {
+    pendingCalls++
+    return new Promise(resolve => { finishStat = resolve })
+  }
+  const starts = Array.from({ length: 25 }, () => pathExists('/slow', delayedStat))
+  const isFolder = checkDownloadPath('/slow', delayedStat)
+  assert.equal(await probeFolder('/slow', delayedStat, 20), 'stalled')
+  assert.equal(pendingCalls, 1, 'resume, preference and health checks share the pending stat')
+  assert.equal(await pathExists(__filename), true, 'an independent path completes')
+  finishStat({ isDirectory: () => true })
+  assert.ok((await Promise.all([...starts, isFolder])).every(Boolean))
+  assert.equal(await pathExists('/slow', async () => { throw new Error('gone') }), false, 'retry checks again')
   assert.equal(await probeFolder(os.tmpdir()), 'ok')
   assert.equal(await probeFolder(path.join(os.tmpdir(), 'webtorrent-no-such-folder')), 'missing')
   assert.equal(await probeFolder(__filename), 'missing', 'a file is not a folder')

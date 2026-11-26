@@ -16,13 +16,21 @@ module.exports = {
 // network share, a sleeping disk) never fails: the call just hangs, and each
 // hung call holds one of the process's few file threads, so only one at a time.
 const probing = new Set()
+const pendingStats = new Map()
+
+function sharedStat (filePath, stat) {
+  if (!pendingStats.has(filePath)) {
+    pendingStats.set(filePath, stat(filePath).finally(() => pendingStats.delete(filePath)))
+  }
+  return pendingStats.get(filePath)
+}
 
 // 'ok', 'missing', or 'stalled' when the folder doesn't answer in time
 async function probeFolder (filePath, stat = fs.stat, timeout = 3000) {
   assertPath(filePath)
   if (probing.has(filePath)) return 'stalled'
   probing.add(filePath)
-  const check = stat(filePath)
+  const check = sharedStat(filePath, stat)
     .then(stats => stats.isDirectory() ? 'ok' : 'missing', () => 'missing')
     .finally(() => probing.delete(filePath))
   let timer
@@ -30,19 +38,19 @@ async function probeFolder (filePath, stat = fs.stat, timeout = 3000) {
   return Promise.race([check, late]).finally(() => clearTimeout(timer))
 }
 
-async function checkDownloadPath (filePath) {
+async function checkDownloadPath (filePath, stat = fs.stat) {
   assertPath(filePath)
   try {
-    return (await fs.stat(filePath)).isDirectory()
+    return (await sharedStat(filePath, stat)).isDirectory()
   } catch (err) {
     return false
   }
 }
 
-async function pathExists (filePath) {
+async function pathExists (filePath, stat = fs.stat) {
   assertPath(filePath)
   try {
-    await fs.stat(filePath)
+    await sharedStat(filePath, stat)
     return true
   } catch (err) {
     return false

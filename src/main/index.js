@@ -145,23 +145,6 @@ function init () {
     console.timeEnd('init')
   })
 
-  app.on('before-quit', e => {
-    if (app.isQuitting) return
-
-    app.isQuitting = true
-    e.preventDefault()
-    const onSaved = () => { clearTimeout(timeout); app.quit() }
-    app.once('stateSaved', onSaved)
-    windows.main.dispatch('stateSaveImmediate') // try to save state on exit
-    const timeout = setTimeout(() => {
-      app.removeListener('stateSaved', onSaved)
-      app.isQuitting = false
-      app.emit('quitCancelled')
-      windows.main.show()
-      windows.main.send('error', 'Unable to save before quitting. Please try again.')
-    }, 4000)
-  })
-
   app.on('activate', () => {
     if (isReady) windows.main.show()
   })

@@ -5,10 +5,6 @@ const { cleanTorrentName } = require('../lib/torrent-alias')
 const sound = require('../lib/sound')
 const { dispatch } = require('../lib/dispatcher')
 
-// Fast resume trusts the saved piece map, and a crash or force quit keeps only
-// what was last saved: save unfinished torrents' maps this often while they download
-const MAP_SAVE_INTERVAL = 60 * 1000
-
 // A torrent that is on but still not ready after this long gets its download
 // folder checked, to tell a drive that stopped answering from slow peers
 const FOLDER_CHECK_AFTER = 10 * 1000
@@ -16,8 +12,7 @@ const FOLDER_CHECK_AFTER = 10 * 1000
 module.exports = class TorrentController {
   constructor (state) {
     this.state = state
-    this.mapSavedAt = Date.now()
-    this.mapSavedDownloads = ''
+    this.resumeMaps = ''
     this.waitingSince = new Map() // torrentKey -> when it was first seen not ready
   }
 
@@ -202,21 +197,21 @@ module.exports = class TorrentController {
       }
     })
 
-    // Per torrent: a total could stay the same while one torrent leaves and another gains data
-    const downloads = progressInfo.torrents
-      .filter(p => p.ready && !p.done)
-      .map(p => p.torrentKey + ':' + p.downloaded)
-      .join()
-    if (downloads !== this.mapSavedDownloads && Date.now() - this.mapSavedAt >= MAP_SAVE_INTERVAL) {
-      this.mapSavedAt = Date.now()
-      this.mapSavedDownloads = downloads
-      dispatch('stateSave')
-    }
-
     // TODO: Find an efficient way to re-enable this line, which allows subtitle
     //       files which are completed after a video starts to play to be added
     //       dynamically to the list of subtitles.
     // checkForSubtitles()
+  }
+
+  checkpointResumeMaps () {
+    // Writes may finish long after the last bytes arrive. A quiet engine stops sending progress.
+    const maps = this.state.saved.torrents
+      .filter(s => s.progress?.ready && !s.completed)
+      .map(s => s.torrentKey + ':' + TorrentSummary.getResumeBitfield(s))
+      .join()
+    if (maps === this.resumeMaps) return
+    this.resumeMaps = maps
+    dispatch('stateSave')
   }
 
   torrentFileModtimes (torrentKey, fileModtimes) {

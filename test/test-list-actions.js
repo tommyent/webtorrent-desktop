@@ -219,50 +219,36 @@ async function main () {
   torrents.torrentDone(10, { bytesReceived: 0 })
   assert.deepEqual(posters, [10])
 
-  // Unfinished torrents' piece maps are saved while they download, at most once a minute
-  const realNow = Date.now
-  let clock = realNow()
-  Date.now = () => clock
-  const mapState = { saved: { torrents: [{ torrentKey: 20, infoHash: 'f'.repeat(40), status: 'downloading', completed: false }] }, dock: {} }
+  // Checkpoints use write-confirmed pieces even when received bytes stay flat and IPC goes quiet.
+  const unfinished = { torrentKey: 20, infoHash: 'f'.repeat(40), status: 'downloading', completed: false }
+  const mapState = { saved: { torrents: [unfinished] }, dock: {} }
   const saver = new TorrentController(mapState)
   const saves = () => dispatched.filter(action => action === 'stateSave').length
-  const tick = (seconds, downloaded) => {
-    clock += seconds * 1000
-    saver.torrentProgress({ torrents: [{ torrentKey: 20, ready: true, done: false, downloaded }] })
-  }
+  const progress = (torrentKey, bits) => ({ torrentKey, ready: true, done: false, downloaded: 8192, bitfield: { buffer: [bits] } })
   const before = saves()
-  tick(30, 100)
-  assert.equal(saves(), before, 'not before a minute has passed')
-  tick(31, 100)
-  assert.equal(saves(), before + 1, 'downloading for a minute: saved')
-  tick(30, 200)
-  assert.equal(saves(), before + 1, 'at most once a minute')
-  tick(31, 200)
-  assert.equal(saves(), before + 2, 'new data a minute later: saved')
-  tick(120, 200)
-  assert.equal(saves(), before + 2, 'nothing new, nothing saved')
-  mapState.saved.torrents.push(
-    { torrentKey: 21, infoHash: 'e'.repeat(40), status: 'downloading', completed: false },
-    { torrentKey: 22, infoHash: 'd'.repeat(40), status: 'seeding', completed: true })
-  clock += 120 * 1000
+  saver.torrentProgress({ torrents: [progress(20, 1)] })
+  assert.equal(saves(), before, 'progress events alone do not trigger a periodic save')
+  saver.checkpointResumeMaps()
+  assert.equal(saves(), before + 1)
+  saver.torrentProgress({ torrents: [progress(20, 3)] })
+  assert.equal(saves(), before + 1)
+  saver.checkpointResumeMaps()
+  assert.equal(saves(), before + 2, 'newly written pieces saved without another progress event')
+  saver.checkpointResumeMaps()
+  assert.equal(saves(), before + 2, 'unchanged maps do not cause another save')
+
+  mapState.saved.torrents.push({ torrentKey: 21, completed: false }, { torrentKey: 22, completed: true })
   saver.torrentProgress({
     torrents: [
-      { torrentKey: 20, ready: true, done: false, downloaded: 200 },
-      { torrentKey: 21, ready: false, done: false, downloaded: 500 },
-      { torrentKey: 22, ready: true, done: true, downloaded: 900 }
+      progress(20, 3), { ...progress(21, 1), ready: false }, { ...progress(22, 1), done: true }
     ]
   })
-  assert.equal(saves(), before + 2, 'torrents still verifying or finished are not counted')
-  // One torrent pauses while another gains the same amount: the total is unchanged,
-  // but the new data still gets saved
-  const active = (torrentKey, downloaded) => ({ torrentKey, ready: true, done: false, downloaded })
-  clock += 61 * 1000
-  saver.torrentProgress({ torrents: [active(20, 16384), active(21, 0)] })
-  assert.equal(saves(), before + 3)
-  clock += 61 * 1000
-  saver.torrentProgress({ torrents: [active(21, 16384)] })
-  assert.equal(saves(), before + 4, 'saved though the total is the same')
-  Date.now = realNow
+  saver.checkpointResumeMaps()
+  assert.equal(saves(), before + 2, 'unverified and complete torrents are excluded')
+  mapState.saved.torrents.shift()
+  saver.torrentProgress({ torrents: [{ ...progress(21, 3), selectedDone: true }] })
+  saver.checkpointResumeMaps()
+  assert.equal(saves(), before + 3, 'equal piece counts in a different, partially selected torrent are saved')
 
   // Bundled torrents have trusted file metadata but no download folder until
   // the engine reports it. Starting one must still allow preferences to save.

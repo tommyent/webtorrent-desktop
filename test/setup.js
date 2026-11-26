@@ -60,6 +60,8 @@ function createApp () {
         rootPath,
         '--test',
         '--force-device-scale-factor=1',
+        // Screenshot comparisons read raw RGB values, so use the same color space on every display.
+        '--force-color-profile=srgb',
         // Must come after the app path: sliceArgv() in src/main/index.js drops the
         // first 4 args in test mode, and later '--' flags are ignored by processArgv().
         `--user-data-dir=${userDataDir}`
