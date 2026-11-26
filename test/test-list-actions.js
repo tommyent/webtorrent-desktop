@@ -259,6 +259,17 @@ async function main () {
   new TorrentListController(bundledState).toggleTorrent(30)
   permissions.validateSaved(bundledState.saved)
 
+  const engineMetadata = { ...bundled, path: '/downloads' }
+  permissions.recordTorrent(engineMetadata)
+  permissions.validateSaved(bundledState.saved)
+  assert.equal(bundled.path, engineMetadata.path, 'a save sent before metadata uses the engine download path')
+  const pending = { infoHash: bundled.infoHash }
+  const validate = torrent => permissions.validateSaved({ ...bundledState.saved, torrents: [torrent] })
+  validate(pending)
+  assert.deepEqual(pending.files, engineMetadata.files, 'new torrent metadata survives an earlier save')
+  assert.throws(() => validate({ ...pending, path: '/other' }), /paths cannot be changed/)
+  assert.throws(() => validate({ ...pending, files: [{ path: 'other' }] }), /paths cannot be changed/)
+
   console.log('List action regressions passed: switch during path check, on/off/on, pause all, missing folder, multi-remove, restart before parse, checked rows that leave, fast resume, poster on done, periodic map save')
 }
 

@@ -95,7 +95,7 @@ and torrent creation already existed in the upstream app; the fork improves thos
 
 ### Platforms, privacy, and safety
 
-- **Current runtime:** Electron 44, WebTorrent 3, and React 19 replace the old stack.
+- **Current runtime:** Electron 45, WebTorrent 3, and React 19 replace the old stack.
 - **Packages:** macOS builds run natively on Apple Silicon; Linux has x64 and arm64 packages,
   including a portable ZIP launcher. Windows has an x64 installer and portable build. The Mac
   DMG launches correctly and has an ad hoc signature for a first-launch prompt; it is not

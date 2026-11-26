@@ -32,6 +32,12 @@ jobs:
       # there (see test/setup.js).
       - run: npm run test-integration
         if: matrix.os == 'macos-15'
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: failure() && matrix.os == 'macos-15'
+        with:
+          name: screenshot-mismatches
+          path: test/screenshots/darwin/*-failed.png
+          if-no-files-found: ignore
       - run: xvfb-run --auto-servernum node test/test-audit-ui.js
         if: matrix.os == 'ubuntu-latest'
       - run: node test/test-audit-ui.js

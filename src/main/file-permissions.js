@@ -61,6 +61,9 @@ exports.validateSaved = saved => {
       if (torrent.path || torrent.files) throw new Error('Unknown torrent data')
       continue
     }
+    // The engine can deliver metadata while an earlier UI save is in flight.
+    if (torrent.path === undefined && known.path !== undefined) torrent.path = known.path
+    if (torrent.files === undefined && known.files !== undefined) torrent.files = structuredClone(known.files)
     if (torrent.path !== known.path || JSON.stringify((torrent.files || []).map(f => f.path)) !==
         JSON.stringify((known.files || []).map(f => f.path))) throw new Error('Torrent data paths cannot be changed')
   }
