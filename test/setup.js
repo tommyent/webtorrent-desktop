@@ -187,7 +187,9 @@ function screenshotCreateOrCompare (app, t, name, hoverSelector, maskSelector) {
     fs.mkdirSync(ssDir)
   }
 
-  const ssPath = path.join(ssDir, name + '.png')
+  // Native controls can have different metrics across OS releases.
+  const osBaseline = path.join(ssDir, require('os').release().split('.')[0], name + '.png')
+  const ssPath = fs.existsSync(osBaseline) ? osBaseline : path.join(ssDir, name + '.png')
   let ssBuf
 
   try {
